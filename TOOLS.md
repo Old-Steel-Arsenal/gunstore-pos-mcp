@@ -300,5 +300,5 @@ GunBroker 上一条 listing 就是一把枪。
 
 ---
 
-*工具总数 85（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表），默认注册 78（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 20 个。对应版本 v0.7.0；工具行为以 README.md
+*工具总数 85（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表），默认注册 78（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 20 个。对应版本 v0.7.1；工具行为以 README.md
 和源码 `gunstore_mcp/tools/` 为准。*

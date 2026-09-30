@@ -79,6 +79,7 @@ class Verifier(unittest.TestCase):
 		headers = get.call_args.kwargs["headers"]
 		self.assertEqual((headers["Authorization"], headers["Host"]), ("Bearer T1", "pos.example.com"))
 		self.assertIn("connector_identity", get.call_args.args[0])
+		self.assertEqual(get.call_args.kwargs["params"], {"surface": "full"})
 		self.assertNotIn("T1", repr(v._cache), "the cache must not hold the token")
 
 	def test_tokens_of_non_connector_apps_and_guests_are_refused(self):
@@ -241,7 +242,7 @@ class HttpApp(_Fresh, unittest.TestCase):
 		self.assertEqual(r.status_code, 200)
 		self.assertEqual(r.json(), {"resource": "https://mcp.example.com/osa/cpa/mcp",
 			"authorization_servers": ["https://pos.example.com"],
-			"bearer_methods_supported": ["header"]})
+			"scopes_supported": ["all"], "bearer_methods_supported": ["header"]})
 
 	def test_proxied_host_header_is_accepted(self):
 		with patch.object(auth, "remote_session", lambda: _POOL), \
@@ -297,10 +298,25 @@ class HttpApp(_Fresh, unittest.TestCase):
 			("Bearer TOKEN-B", "started", "frappe_list_documents"),
 			("Bearer TOKEN-B", "ok", "frappe_list_documents")])
 
+	def test_a_switched_off_server_says_so(self):
+		"""The POS refuses to start the call with its reason; the user sees that
+		reason, and the tool never touches the POS."""
+		from unittest.mock import patch as _p
+		from gunstore_mcp import audit
+		refusal = _resp(403, {"exc_type": "PermissionError", "_server_messages": json.dumps(
+			[json.dumps({"message": "The cpa MCP server is switched off in MCP Settings."})])})
+		with _p.object(audit, "remote_session") as pool:
+			pool.return_value.post.return_value = refusal
+			with self.assertRaises(audit.AuditUnavailable) as ctx:
+				with _p.object(audit, "_bearer", return_value="T"), \
+						_env({**HTTP_ENV, "GUNSTORE_MCP_MODE": "cpa"}):
+					audit.start("frappe_list_documents", "cpa", {})
+		self.assertIn("switched off in MCP Settings", str(ctx.exception))
+
 	def test_a_call_that_cannot_be_recorded_does_not_run(self):
 		tool_calls, audit_posts, out = self._call(["TOKEN-A"], audit_fail=True)
 		self.assertEqual(tool_calls, [], "the tool must not touch the POS unrecorded")
-		self.assertIn("audit record", out[0].text)
+		self.assertIn("POS refused the call", out[0].text)
 
 	def test_threaded_tools_keep_their_schemas_on_both_surfaces(self):
 		import asyncio as aio

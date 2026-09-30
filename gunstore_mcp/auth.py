@@ -48,8 +48,14 @@ def _key(token: str) -> str:
 class FrappeTokenVerifier:
     """mcp TokenVerifier backed by the POS."""
 
-    def __init__(self, backend_url: str, host_header: str = "", timeout: int = 10) -> None:
+    def __init__(self, backend_url: str, host_header: str = "", timeout: int = 10,
+                 surface: str = "full") -> None:
         self.backend_url = backend_url.rstrip("/")
+        # Which server is asking. A surface switched off in the POS's MCP Settings
+        # still verifies the token (a refusal would look like a bad token and send
+        # clients into a sign-in loop); its calls are refused with the reason when
+        # they try to start (audit.start).
+        self.surface = surface
         self.host_header = host_header
         self.timeout = timeout
         self._cache: OrderedDict[str, tuple[float, str, int | None]] = OrderedDict()
@@ -62,7 +68,7 @@ class FrappeTokenVerifier:
             headers["Host"] = self.host_header
         try:
             resp = remote_session().get(self.backend_url + IDENTITY, headers=headers,
-                                        timeout=self.timeout)
+                                        params={"surface": self.surface}, timeout=self.timeout)
         except requests.RequestException as e:
             raise AuthUnavailable(f"POS unreachable: {type(e).__name__}") from None
         if resp.status_code in (401, 403, 417):

@@ -120,14 +120,18 @@ def _http_settings() -> dict:
         # that request's token (a refreshed one included), nothing is kept between
         # requests, and a session id is not a credential anybody could replay.
         "stateless_http": True,
-        "token_verifier": FrappeTokenVerifier(cfg.backend_url, cfg.backend_host, cfg.timeout),
+        "token_verifier": FrappeTokenVerifier(cfg.backend_url, cfg.backend_host, cfg.timeout,
+                                              surface=get_mode()),
         "auth": AuthSettings(issuer_url=cfg.base_url, resource_server_url=cfg.public_url),
         # Bound to loopback, the SDK would otherwise allow only localhost Host
         # headers and refuse every request the proxy forwards.
         "transport_security": TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=[public.netloc, "127.0.0.1:*", "localhost:*"],
-            allowed_origins=[f"{public.scheme}://{public.netloc}", "https://claude.ai"],
+            # Remote MCP clients connect server-to-server (no Origin); these cover
+            # the browser-side ones (Claude, ChatGPT).
+            allowed_origins=[f"{public.scheme}://{public.netloc}", "https://claude.ai",
+                             "https://chatgpt.com", "https://chat.openai.com"],
         ),
     }
 
@@ -154,8 +158,11 @@ def http_app(server: FastMCP):
     cfg = get_config()
     app = server.streamable_http_app()
     path = "/.well-known/oauth-protected-resource" + urlparse(cfg.public_url).path
+    # scopes_supported: the one scope a dynamically registered POS client holds
+    # ("all"); clients (ChatGPT included) request what is advertised here, and
+    # the POS refuses any scope the client was not registered with.
     body = {"resource": cfg.public_url, "authorization_servers": [cfg.base_url],
-            "bearer_methods_supported": ["header"]}
+            "scopes_supported": ["all"], "bearer_methods_supported": ["header"]}
     app.router.routes.insert(0, Route(path, lambda request: JSONResponse(body),
                                       methods=["GET"]))
     return app
