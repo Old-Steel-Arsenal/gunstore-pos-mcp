@@ -28,7 +28,6 @@ from .modes import (
 
 
 _remote_session: requests.Session | None = None
-_mode_once: str | None = None
 
 
 def remote_session() -> requests.Session:
@@ -41,13 +40,6 @@ def remote_session() -> requests.Session:
         s.cookies.set_policy(DefaultCookiePolicy(allowed_domains=[]))
         _remote_session = s
     return _remote_session
-
-
-def _remote_mode() -> str:
-    global _mode_once
-    if _mode_once is None:
-        _mode_once = get_mode()
-    return _mode_once
 
 
 def backend_headers(bearer: str) -> dict:
@@ -113,7 +105,7 @@ class FrappeClient:
             raise RemoteAuthMissing("No OAuth token on this request — reconnect the connector.")
         self.base_url = cfg.backend_url if self.remote else cfg.base_url
         self.timeout = cfg.timeout
-        self.mode = _remote_mode() if self.remote else get_mode()
+        self.mode = get_mode()
         # Remote clients are built per call but share one connection pool; the
         # per-user Authorization rides on each request, never on the shared session.
         self.session = remote_session() if self.remote else _build_session()

@@ -103,6 +103,20 @@ class Verifier(unittest.TestCase):
 		with patch.object(_POOL, "get", return_value=_me()):
 			self.assertEqual(self._verify(v, "VALID").client_id, "cpa@x.com")
 
+	def test_a_token_is_not_trusted_past_its_expiry(self):
+		"""r4: the SDK must see the real expiry, so an expired token is a 401 at the
+		HTTP layer (the client refreshes) rather than failing tools for up to 60 s."""
+		import time as _t
+		v = auth.FrappeTokenVerifier("https://pos.example.com")
+		soon = int(_t.time()) + 5
+		with patch.object(_POOL, "get", return_value=_resp(200, {"message": {
+				"user": "u@x.com", "connector": True, "expires_at": soon}})) as get:
+			tok = self._verify(v, "T-EXP")
+		self.assertEqual(tok.expires_at, soon)
+		deadline = next(iter(v._cache.values()))[0]
+		self.assertLessEqual(deadline - _t.monotonic(), 6, "cache must end at the token's expiry")
+		get.assert_called_once()
+
 	def test_rejections_are_cached_briefly(self):
 		v = auth.FrappeTokenVerifier("https://pos.example.com")
 		with patch.object(_POOL, "get", return_value=_resp(401, {})) as get:
@@ -252,7 +266,7 @@ class HttpApp(_Fresh, unittest.TestCase):
 		users = {"TOKEN-A": "a@x.com", "TOKEN-B": "b@x.com"}
 		out = []
 		from gunstore_mcp import audit
-		with patch.object(auth.FrappeTokenVerifier, "_identity", lambda s, t: users.get(t, "")), \
+		with patch.object(auth.FrappeTokenVerifier, "_identity", lambda s, t: (users.get(t, ""), None)), \
 				patch.object(audit, "_submit", lambda fn, *a: fn(*a)), \
 				patch.object(frappe_client.requests.Session, "request", fake_request), \
 				patch.object(frappe_client.requests.Session, "post", fake_post), \
@@ -311,6 +325,17 @@ class AuditMask(unittest.TestCase):
 			"values": {"consumer_key": "ck", "password": "x", "qty": 3}, "rows": [{"api_key": "k"}]})
 		self.assertEqual(masked, {"doctype": "GunBroker Settings", "dev_key": "***",
 			"values": {"consumer_key": "***", "password": "***", "qty": 3}, "rows": [{"api_key": "***"}]})
+
+
+class AuditValueMask(unittest.TestCase):
+	def test_secrets_in_filters_json_strings_and_error_text(self):
+		from gunstore_mcp import audit
+		masked = audit._mask({"filters": [["api_key", "=", "sk_live_abc"], ["qty", ">", 1]],
+			"kwargs": {"args": json.dumps({"password": "hunter2", "item": "X"})}})
+		self.assertEqual(masked["filters"], [["api_key", "=", "***"], ["qty", ">", 1]])
+		self.assertEqual(json.loads(masked["kwargs"]["args"]), {"password": "***", "item": "X"})
+		self.assertEqual(audit._mask_text("bad request: api_key=sk_live_abc for item X"),
+			"bad request: api_key=*** for item X")
 
 
 class SharedPool(_Fresh, unittest.TestCase):

@@ -187,10 +187,14 @@ and approves. No key is typed anywhere, and the server holds none.
   with the signed-in user's own POS roles**.
 - **Only connector tokens are accepted**: a token the POS issued to a client created
   by dynamic registration. Tokens of OAuth apps made in Desk are refused.
-- **Every call is audited in the POS** (Activity Log, reads included): who, through
-  which connector, which tool, which arguments (secret-looking keys masked),
-  Success / Failed. The row is written before the tool runs — if it cannot be, the
-  tool does not run. Needs a gunstore-pos release carrying `ffl_core/api/connector.py`.
+- **Every call is audited in the POS** (Desk → Connector Audit Log, permanent, rows
+  cannot be deleted; reads included): who, through which connector, which tool,
+  which arguments (secrets masked by key, in filters and inside JSON strings),
+  Started → Success / Failed. The row is written before the tool runs — if it
+  cannot be, the tool does not run. Needs a gunstore-pos release carrying
+  `ffl_core/api/connector.py` and the Connector Audit Log doctype.
+- A user with **Restrict IP** set cannot use the connector: calls reach the POS from
+  the connector (and ultimately from Claude's servers), never from the user's IP.
 - `cpa` mode keeps all three read-only layers. The full surface is **77 tools**
   remotely: `upload_attachment` reads a path on the *server* and is never registered
   there. The two opt-in action sets stay off.

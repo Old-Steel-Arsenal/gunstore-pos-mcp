@@ -1,10 +1,10 @@
-"""Remote-connector audit trail: every tool call leaves an Activity Log in the POS
-(ffl_core.api.connector.log_connector_call), recorded as the calling user,
-through the connector they authorized. Reads included.
+"""Remote-connector audit trail: every tool call leaves a row in the POS's
+permanent Connector Audit Log (ffl_core.api.connector.log_connector_call),
+recorded as the calling user, through the connector they authorized. Reads included.
 
 Written BEFORE the tool runs; if that fails the tool does not run, so nothing
 happens unrecorded. Closed after the call (Success / Failed). A failure to close
-leaves the row at "Linked" (outcome unknown) and never turns a finished call into
+leaves the row at "Started" (outcome unknown) and never turns a finished call into
 an error the user would retry.
 
 Infrastructure, not a tool: it posts with the user's own token through the shared
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -34,14 +35,30 @@ def _submit(fn, *args) -> None:
     _closer.submit(fn, *args)
 
 
+_ASSIGNED_SECRET = re.compile(r"(" + _CREDENTIAL_NAME.pattern + r")(\W{0,3}[=:]\W{0,3})\S+", re.I)
+
+
 def _mask(value: Any) -> Any:
-    """Credential-looking keys masked with the same rule the write guards use,
-    before anything leaves this process (the POS masks again)."""
+    """Secrets masked before anything leaves this process (the POS masks again):
+    by key (the write guards' credential rule), in [field, op, value] filter
+    triples, and inside JSON-string arguments."""
     if isinstance(value, dict):
         return {k: ("***" if _CREDENTIAL_NAME.search(str(k)) else _mask(v)) for k, v in value.items()}
     if isinstance(value, list):
+        if len(value) >= 3 and isinstance(value[0], str) and _CREDENTIAL_NAME.search(value[0]):
+            return [value[0], value[1], "***", *value[3:]]
         return [_mask(v) for v in value]
+    if isinstance(value, str) and value[:1] in "{[":
+        try:
+            return json.dumps(_mask(json.loads(value)))
+        except ValueError:
+            return value
     return value
+
+
+def _mask_text(text: str) -> str:
+    """'api_key=sk_live…' style secrets in free text (error messages)."""
+    return _ASSIGNED_SECRET.sub(lambda m: m.group(1) + m.group(m.lastindex) + "***", text)
 
 
 class AuditUnavailable(RuntimeError):
@@ -88,7 +105,7 @@ def finish(log: str, tool: str, surface: str, error: str | None = None) -> None:
         try:
             _post({"tool": tool, "surface": surface, "log": log,
                    "phase": "failed" if error else "ok",
-                   "error": (error or "")[:1000] or None}, bearer)
+                   "error": _mask_text(error or "")[:1000] or None}, bearer)
         except Exception:
             logger.warning("audit: could not close %s for %s", log, tool)
 
