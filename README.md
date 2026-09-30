@@ -185,6 +185,9 @@ and approves. No key is typed anywhere, and the server holds none.
   POS (`ffl_core.api.connector.connector_identity`, cached 60 s; the token is never
   logged or cached in the clear) and forwards it on every call, so **each call runs
   with the signed-in user's own POS roles**.
+- **Switched in the POS**: Desk → Claude Connector Settings turns the read-only
+  and full connectors on or off separately (and owns the OAuth Settings they sign
+  in through); a switched-off surface refuses every call.
 - **Only connector tokens are accepted**: a token the POS issued to a client created
   by dynamic registration. Tokens of OAuth apps made in Desk are refused.
 - **Every call is audited in the POS** (Desk → Connector Audit Log, permanent, rows

@@ -79,6 +79,7 @@ class Verifier(unittest.TestCase):
 		headers = get.call_args.kwargs["headers"]
 		self.assertEqual((headers["Authorization"], headers["Host"]), ("Bearer T1", "pos.example.com"))
 		self.assertIn("connector_identity", get.call_args.args[0])
+		self.assertEqual(get.call_args.kwargs["params"], {"surface": "full"})
 		self.assertNotIn("T1", repr(v._cache), "the cache must not hold the token")
 
 	def test_tokens_of_non_connector_apps_and_guests_are_refused(self):

@@ -48,8 +48,12 @@ def _key(token: str) -> str:
 class FrappeTokenVerifier:
     """mcp TokenVerifier backed by the POS."""
 
-    def __init__(self, backend_url: str, host_header: str = "", timeout: int = 10) -> None:
+    def __init__(self, backend_url: str, host_header: str = "", timeout: int = 10,
+                 surface: str = "full") -> None:
         self.backend_url = backend_url.rstrip("/")
+        # Which connector is asking: the POS refuses a surface switched off in
+        # Claude Connector Settings (and a request that names none).
+        self.surface = surface
         self.host_header = host_header
         self.timeout = timeout
         self._cache: OrderedDict[str, tuple[float, str, int | None]] = OrderedDict()
@@ -62,7 +66,7 @@ class FrappeTokenVerifier:
             headers["Host"] = self.host_header
         try:
             resp = remote_session().get(self.backend_url + IDENTITY, headers=headers,
-                                        timeout=self.timeout)
+                                        params={"surface": self.surface}, timeout=self.timeout)
         except requests.RequestException as e:
             raise AuthUnavailable(f"POS unreachable: {type(e).__name__}") from None
         if resp.status_code in (401, 403, 417):
