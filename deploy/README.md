@@ -19,9 +19,12 @@ Connector Audit Log doctype (1.5.0-beta.11+); the box is logged in to ghcr.io
    Check: `curl -s https://pos.<domain>/.well-known/oauth-authorization-server` lists
    a `registration_endpoint`.
 2. **Files**: `mkdir -p ~/gunstore-pos-mcp/deploy`, copy `compose.yaml` there and
-   `.env.example` as `.env` (set the store's URL). Nothing secret goes in `.env`.
+   `.env.example` as `.env`: set `FRAPPE_BASE_URL` (the store's POS URL, no trailing
+   slash) and `MCP_TAG` (a tested build from the image workflow, `sha-<7>`).
+   Nothing secret goes in `.env`.
 3. **Start**: `cd ~/gunstore-pos-mcp/deploy && docker compose pull && docker compose up -d`
-   → `docker compose ps` shows both services `healthy`;
+   → `docker compose ps` shows both services `healthy` (healthy = the endpoint
+   answers 401 and the local POS answers, so a wrong internal URL shows up here);
    `curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8781/mcp` → `401`.
 4. **Caddy** (human on the box, per the POS RUNBOOK): back up `/etc/caddy/Caddyfile`,
    paste `caddy-connector.caddy` inside the `pos.<domain>` block above its
@@ -35,8 +38,10 @@ Connector Audit Log doctype (1.5.0-beta.11+); the box is logged in to ghcr.io
 
 ## Update
 
-`cd ~/gunstore-pos-mcp/deploy && docker compose pull && docker compose up -d`
-(pin with `MCP_TAG=sha-<7>` in `.env` to hold a known-good build).
+Set `MCP_TAG` in `.env` to the new build's `sha-<7>` (the image workflow tests
+before it pushes), then `cd ~/gunstore-pos-mcp/deploy && docker compose pull &&
+docker compose up -d`. `docker inspect` shows the commit in the
+`org.opencontainers.image.revision` label; rolling back = the previous tag.
 
 ## Roll back
 

@@ -89,7 +89,8 @@ def get_config() -> Config:
             return url.startswith(("https://", "http://localhost:", "http://127.0.0.1:",
                 "http://dev.localhost:"))
         if not (secure(base_url) and secure(public_url)
-                and public_url.endswith("/mcp") and raw_port.isdigit()):
+                and public_url.endswith("/mcp") and "//" not in urlparse(public_url).path
+                and raw_port.isdigit()):
             raise RuntimeError(
                 "http transport needs FRAPPE_BASE_URL (https://…), GUNSTORE_MCP_PUBLIC_URL "
                 "(https://…/mcp) — plain http only for a local stack — and GUNSTORE_MCP_PORT."

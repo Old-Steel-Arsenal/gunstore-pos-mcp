@@ -7,7 +7,8 @@
 #   cd ~/gunstore-pos-mcp/deploy && docker compose pull && docker compose up -d
 name: gunstore-mcp
 x-common: &common
-  image: ghcr.io/xuanji86/gunstore-pos-mcp:${MCP_TAG:-main}
+  # Pinned: set MCP_TAG in .env to a tested build (sha-<7> or a version).
+  image: ghcr.io/xuanji86/gunstore-pos-mcp:${MCP_TAG:?set MCP_TAG in .env (sha-<7> or a version)}
   network_mode: host
   restart: unless-stopped
   env_file: .env
@@ -20,10 +21,10 @@ services:
     environment:
       GUNSTORE_MCP_MODE: cpa
       GUNSTORE_MCP_PORT: "8781"
-      GUNSTORE_MCP_PUBLIC_URL: ${POS_PUBLIC_URL}/connector/cpa/mcp
+      GUNSTORE_MCP_PUBLIC_URL: ${FRAPPE_BASE_URL:?set FRAPPE_BASE_URL in .env}/connector/cpa/mcp
   mcp-full:
     <<: *common
     environment:
       GUNSTORE_MCP_MODE: full
       GUNSTORE_MCP_PORT: "8782"
-      GUNSTORE_MCP_PUBLIC_URL: ${POS_PUBLIC_URL}/connector/full/mcp
+      GUNSTORE_MCP_PUBLIC_URL: ${FRAPPE_BASE_URL:?set FRAPPE_BASE_URL in .env}/connector/full/mcp
