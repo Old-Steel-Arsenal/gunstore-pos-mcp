@@ -72,7 +72,7 @@ EXPECTED_CPA_TOOLS = {
 	"pending_orders", "pending_web_orders",
 	"consignment_queue", "consignment_dealers", "consignment_serials",
 	"consignment_dealer_orders",
-	# CPA reports (6)
+	# CPA reports (7)
 	"sales_report", "inventory_receipts", "gl_entries", "financial_statement",
 	"tax_liability", "ar_ap_summary", "payroc_transactions",
 }
@@ -303,6 +303,23 @@ class ClientLayerFull(unittest.TestCase):
 		client.call_method("ffl_core.api.manual_order.dispose_order", {})
 		client.get_document("RSR Settings", "RSR Settings")
 		self.assertEqual(len(rec.calls), 3)
+
+
+class PerCallTimeout(unittest.TestCase):
+	def test_call_method_timeout_reaches_the_http_request(self):
+		client = _client("cpa")
+		seen = []
+
+		class Resp:
+			status_code, content = 200, b'{"message": 1}'
+
+			def json(self):
+				return {"message": 1}
+
+		client.session.request = lambda *a, **kw: seen.append(kw["timeout"]) or Resp()
+		client.call_method("ffl_integrations.payroc.ledger.payroc_transactions", {}, timeout=130)
+		client.call_method("ffl_integrations.payroc.ledger.payroc_transactions", {})
+		self.assertEqual(seen, [130, 5])
 
 
 if __name__ == "__main__":

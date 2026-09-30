@@ -169,6 +169,7 @@ claude mcp add gunstore-pos-cpa --scope user \
 | `gl_entries` | GL rows for a date range (`is_cancelled=0` always; explicit `truncated:true`) |
 | `financial_statement` | P&L / Balance Sheet (Date Range) / Trial Balance (fiscal-year auto-resolved) |
 | `tax_liability` | sales-tax liability roll-forward from the GL — accounts resolved from the default sales-tax template, vouchers bucketed fail-closed, cent-exact identity asserted |
+| `payroc_transactions` | every Payroc card transaction for a date range (≤31 days), read live from the gateway — counter and Woo web orders, sales / refunds / declines, portal refunds and voids included — each matched to the POS with disagreement flags; card type + last 4 only, plus the cardholder name. Needs a gunstore-pos release carrying `payroc/ledger.py`, and an API user with System Manager / Accounts Manager / Accounts User |
 | `ar_ap_summary` | aged AR / AP as of a date (Posting Date basis, 30/60/90/120). AP is not maintained in ERPNext (QuickBooks is the book; purchases are prepaid) — reference only |
 
 ## Security notes

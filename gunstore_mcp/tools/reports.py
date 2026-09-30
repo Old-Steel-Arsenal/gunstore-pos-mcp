@@ -1,7 +1,10 @@
 """CPA report tools — read-only report wrappers for the accountant surface.
 
 Registered in BOTH modes (full & cpa). Zero server-side changes: everything
-rides `frappe.desk.query_report.run` and plain REST reads. Caliber authority
+rides `frappe.desk.query_report.run` and plain REST reads — except
+`payroc_transactions`, which calls a custom gunstore-pos endpoint (needs a POS
+release that carries ffl_integrations/payroc/ledger.py) that reads the Payroc
+gateway live. Caliber authority
 is runs/2026-07-16-mcp-cpa-mode/cpa-review.md §2/§3 — these wrappers add NO
 caliber of their own (fail-closed buckets aside), they transport the server's.
 Standard-report filter keys verified against the pinned ERPNext v16 sources.
@@ -349,19 +352,24 @@ def register(mcp: Any) -> None:
         = Woo order number), refunds and declines, including refunds and voids
         made in the Payroc portal that the POS never recorded.
 
-        Each transactions[] row: date_time, type (SALE | REFUND), status
+        Each transactions[] row: date_time, type (SALE | REFUND; any other
+        gateway type is flagged and counted in summary.other_types), status
         (COMPLETE / READY = money held; DECLINED, VOID … = not), batch_status
         (settlement), amount, reference, order_id, card (type + last 4 only),
-        customer_name, source (counter | web | "" = no POS record), pos_doctype,
+        customer_name, terminal, source (counter | web | "" = no POS record), pos_doctype,
         pos_name, pos_amount, pos_refunded, and flags — non-empty where the
         gateway and the POS disagree (no POS record, amount differs, POS charged
         but gateway voided, refund not recorded in POS). pos_only[] = POS
         captures the gateway search did not return, read back by reference.
         summary = sales / refunds / net totals (money held only), counter vs web
         sales, flagged count. truncated=true means the gateway had more pages
-        than were read — split the range. A flag is a question for the books,
+        than could be read in time (the server stops paging at ~75s) — split
+        the range; pos_only is then skipped. The API user needs System Manager,
+        Accounts Manager or Accounts User. A flag is a question for the books,
         never a correction. Read-only (gateway GETs + database reads)."""
         return get_client().call_method(
             "ffl_integrations.payroc.ledger.payroc_transactions",
             {"from_date": from_date, "to_date": to_date},
+            # The server walks the gateway page by page (gunicorn cap 120s).
+            timeout=130,
         )

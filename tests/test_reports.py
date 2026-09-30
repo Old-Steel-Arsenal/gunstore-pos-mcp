@@ -32,8 +32,8 @@ class FakeClient:
 		self.calls.append(("get_document", doctype, name))
 		return self.canned.get(("get", doctype, name), {})
 
-	def call_method(self, method, kwargs=None):
-		self.calls.append(("call_method", method, kwargs))
+	def call_method(self, method, kwargs=None, timeout=None):
+		self.calls.append(("call_method", method, kwargs, timeout))
 		return {"transactions": []}
 
 
@@ -258,7 +258,7 @@ class ReportTools(unittest.TestCase):
 		self.tools["payroc_transactions"]("2026-09-01", "2026-09-30")
 		self.assertEqual(self.client.calls, [("call_method",
 			"ffl_integrations.payroc.ledger.payroc_transactions",
-			{"from_date": "2026-09-01", "to_date": "2026-09-30"})])
+			{"from_date": "2026-09-01", "to_date": "2026-09-30"}, 130)])
 
 	# ---------------------------------------------------------- ar_ap_summary
 

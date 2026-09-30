@@ -116,7 +116,7 @@ class DistributorTools(unittest.TestCase):
 
     def test_distributor_tool_count_pinned(self):
         # 8 read + 4 queue actions = 12. TOOLS.md / CLAUDE.md / README quote the
-        # TOTAL (84) — if this moves, move all of them too.
+        # TOTAL (85) — if this moves, move all of them too.
         self.assertEqual(len(self.tools), 12)
 
     def test_every_tool_is_namespaced(self):
