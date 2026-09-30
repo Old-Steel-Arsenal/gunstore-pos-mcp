@@ -339,3 +339,29 @@ def register(mcp: Any) -> None:
             "ageing_based_on": "Posting Date",
             "range": "30, 60, 90, 120",
         })
+
+    @mcp.tool()
+    def payroc_transactions(from_date: str, to_date: str) -> Any:
+        """Every Payroc card transaction on the merchant account from from_date
+        to to_date (YYYY-MM-DD, inclusive, store time zone, at most 31 days) —
+        read live from the Payroc gateway and matched to the POS. Covers counter
+        sales (order_id = POS / Sales Invoice name) AND Woo web orders (order_id
+        = Woo order number), refunds and declines, including refunds and voids
+        made in the Payroc portal that the POS never recorded.
+
+        Each transactions[] row: date_time, type (SALE | REFUND), status
+        (COMPLETE / READY = money held; DECLINED, VOID … = not), batch_status
+        (settlement), amount, reference, order_id, card (type + last 4 only),
+        customer_name, source (counter | web | "" = no POS record), pos_doctype,
+        pos_name, pos_amount, pos_refunded, and flags — non-empty where the
+        gateway and the POS disagree (no POS record, amount differs, POS charged
+        but gateway voided, refund not recorded in POS). pos_only[] = POS
+        captures the gateway search did not return, read back by reference.
+        summary = sales / refunds / net totals (money held only), counter vs web
+        sales, flagged count. truncated=true means the gateway had more pages
+        than were read — split the range. A flag is a question for the books,
+        never a correction. Read-only (gateway GETs + database reads)."""
+        return get_client().call_method(
+            "ffl_integrations.payroc.ledger.payroc_transactions",
+            {"from_date": from_date, "to_date": to_date},
+        )

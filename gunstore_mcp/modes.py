@@ -35,7 +35,7 @@ class CpaModeRefused(RuntimeError):
 
 
 # Layer 1 — the EXACT cpa tools/list (asserted by set equality in tests;
-# 4 generic + 9 curated read-only + 6 CPA reports = 19).
+# 4 generic + 9 curated read-only + 7 CPA reports = 20).
 CPA_TOOL_NAMES: frozenset[str] = frozenset({
     # generic reads (frappe_run_method deliberately absent: reads and writes
     # are statically indistinguishable through it)
@@ -60,6 +60,7 @@ CPA_TOOL_NAMES: frozenset[str] = frozenset({
     "financial_statement",
     "tax_liability",
     "ar_ap_summary",
+    "payroc_transactions",
 })
 
 # Layer 2 — dotted methods callable in cpa mode. One name per line, verified
@@ -74,6 +75,7 @@ CPA_METHOD_ALLOWLIST: frozenset[str] = frozenset({
     "osa_consignment.api.consignment_out.list_consignment_dealers",
     "osa_consignment.api.consignment_out.available_serials_for_consignment",
     "osa_consignment.api.dealer_orders.list_dealer_orders",
+    "ffl_integrations.payroc.ledger.payroc_transactions",
 })
 
 # Layer 3 — integration Settings doctypes whose get/list reads are refused in

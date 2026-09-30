@@ -78,10 +78,10 @@ Secrets stay in `.env` (loaded by the server), not in the agent config.
 
 > **中文速查手册（按"你想干什么"组织，含安全须知与替代路径）：[TOOLS.md](TOOLS.md)**
 
-84 tools total: 10 generic + 56 curated + 12 distributor + 6 CPA reports; 77 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
+85 tools total: 10 generic + 56 curated + 12 distributor + 7 CPA reports; 78 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
 
 **Modes**: `GUNSTORE_MCP_MODE=cpa` starts a read-only accountant surface —
-exactly 19 tools (the write surface is never registered), a per-name read-only
+exactly 20 tools (the write surface is never registered), a per-name read-only
 method allowlist at the client layer, and the 7 integration Settings doctypes
 blocked from reads. Default (`full`) is the whole surface. Register a second
 server entry (e.g. `gunstore-pos-cpa`) with the same command plus
@@ -106,7 +106,7 @@ claude mcp add gunstore-pos-cpa --scope user \
   so env vars set in the registration win. A standalone install needs no
   `.env` file at all — and the same checkout can serve several entries with
   different `FRAPPE_BASE_URL` / mode combinations (e.g. a dev-site instance).
-- **Verify**: after connecting, `tools/list` must show exactly **19** tools and
+- **Verify**: after connecting, `tools/list` must show exactly **20** tools and
   the server name `gunstore-pos-cpa`. A misspelled/unknown mode value refuses
   to start (fail-closed) rather than silently degrading to the writable surface.
 - **Security boundary — read before handing this to a third party**: the

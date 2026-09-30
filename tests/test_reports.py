@@ -32,6 +32,10 @@ class FakeClient:
 		self.calls.append(("get_document", doctype, name))
 		return self.canned.get(("get", doctype, name), {})
 
+	def call_method(self, method, kwargs=None):
+		self.calls.append(("call_method", method, kwargs))
+		return {"transactions": []}
+
 
 class FakeMCP:
 	def __init__(self):
@@ -60,10 +64,10 @@ class ReportTools(unittest.TestCase):
 
 	# ---------------------------------------------------------- registration
 
-	def test_exactly_six_report_tools(self):
+	def test_exactly_seven_report_tools(self):
 		self.assertEqual(set(self.tools), {
 			"sales_report", "inventory_receipts", "gl_entries", "financial_statement",
-			"tax_liability", "ar_ap_summary",
+			"tax_liability", "ar_ap_summary", "payroc_transactions",
 		})
 
 	# ---------------------------------------------------- inventory_receipts
@@ -247,6 +251,14 @@ class ReportTools(unittest.TestCase):
 	def test_tax_liability_docstring_names_the_total_taxes_trap(self):
 		doc = self.tools["tax_liability"].__doc__
 		self.assertIn("Total Taxes and Charges", doc)
+
+	# ---------------------------------------------------- payroc_transactions
+
+	def test_payroc_transactions_calls_the_read_only_ledger(self):
+		self.tools["payroc_transactions"]("2026-09-01", "2026-09-30")
+		self.assertEqual(self.client.calls, [("call_method",
+			"ffl_integrations.payroc.ledger.payroc_transactions",
+			{"from_date": "2026-09-01", "to_date": "2026-09-30"})])
 
 	# ---------------------------------------------------------- ar_ap_summary
 
