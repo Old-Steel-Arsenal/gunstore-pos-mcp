@@ -255,6 +255,8 @@ GunBroker 上一条 listing 就是一把枪。
 - 业务只读（9）：`find_item` / `item_stock` / `firearms_in_stock` / `pending_orders` / `pending_web_orders` / `consignment_queue` / `consignment_dealers` / `consignment_serials` / `consignment_dealer_orders`
 - 报表工具包（7，见下；**full 模式同样可用**）
 
+**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**;cpa 三层闸照旧;全量面远程是 77 个(`upload_attachment` 读服务器本地路径,远程永不注册)。细节见 README「Remote connector」。
+
 注意 cpa 模式**没有** `available_serials`（其默认剔除寄售/暂扣枪，在盘点语境会漏枪——盘点用 `firearms_in_stock`）。
 
 **账本在 QuickBooks(owner 裁定 2026-09-02)**:ERPNext 是业务系统与数据源,不是账本。喂 QB 的是 `sales_report` / `inventory_receipts` / `tax_liability` + 标准报表 Stock Balance;`financial_statement` / `ar_ap_summary` 只作参考(ERPNext 总账不录费用、不录供应商发票,SRBNB 长期挂账)。
@@ -298,5 +300,5 @@ GunBroker 上一条 listing 就是一把枪。
 
 ---
 
-*工具总数 85（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表），默认注册 78（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 20 个。对应版本 v0.6.0；工具行为以 README.md
+*工具总数 85（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表），默认注册 78（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 20 个。对应版本 v0.7.0；工具行为以 README.md
 和源码 `gunstore_mcp/tools/` 为准。*

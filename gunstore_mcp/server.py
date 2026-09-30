@@ -1,7 +1,12 @@
-"""GunStore-POS admin MCP server (stdio).
+"""GunStore-POS admin MCP server.
 
 Run: `gunstore-mcp` (console script) or `python -m gunstore_mcp.server`.
-Credentials come from mcp/.env (see .env.example).
+
+Transports (GUNSTORE_MCP_TRANSPORT): "stdio" (default) = the local server, one
+API key from mcp/.env (see .env.example); "http" = the remote connector — an
+OAuth resource server whose authorization server is the POS itself. It holds no
+key: every request carries the signed-in user's bearer token, verified against
+the POS (auth.FrappeTokenVerifier) and forwarded on every call.
 
 Modes (GUNSTORE_MCP_MODE): "full" (default) = the whole surface; "cpa" = the
 read-only accountant surface (exactly the 20 tools in modes.CPA_TOOL_NAMES; the
@@ -12,9 +17,15 @@ actions, which are NOT registered otherwise. Sizes are asserted in tests rather
 than restated here — this docstring is where the last stale count lived."""
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from . import __version__
+from .auth import FrappeTokenVerifier
+from .config import HTTP, get_config, get_transport
 from .modes import CPA_MODE, CPA_TOOL_NAMES, FULL_MODE, FilteredMCP, get_mode
 from .tools import curated, distributor, generic, reports
 
@@ -34,9 +45,34 @@ def register_tools(mcp, mode: str | None = None) -> None:
     reports.register(target)
 
 
+def _http_settings() -> dict:
+    """FastMCP kwargs for the remote connector.
+
+    The proxy maps https://<host>/<store>/<mode>/mcp to this process's /mcp, and
+    forwards /.well-known/oauth-protected-resource/<store>/<mode>/mcp unchanged
+    (the SDK derives that metadata route from the public URL, RFC 9728)."""
+    cfg = get_config()
+    public = urlparse(cfg.public_url)
+    return {
+        "host": "127.0.0.1",
+        "port": cfg.port,
+        "streamable_http_path": "/mcp",
+        "token_verifier": FrappeTokenVerifier(cfg.base_url),
+        "auth": AuthSettings(issuer_url=cfg.base_url, resource_server_url=cfg.public_url),
+        # Bound to loopback, the SDK would otherwise allow only localhost Host
+        # headers and refuse every request the proxy forwards.
+        "transport_security": TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=[public.netloc, "127.0.0.1:*", "localhost:*"],
+            allowed_origins=[f"{public.scheme}://{public.netloc}", "https://claude.ai"],
+        ),
+    }
+
+
 def build() -> FastMCP:
     mode = get_mode()
-    mcp = FastMCP("gunstore-pos" if mode == FULL_MODE else "gunstore-pos-cpa")
+    kwargs = _http_settings() if get_transport() == HTTP else {}
+    mcp = FastMCP("gunstore-pos" if mode == FULL_MODE else "gunstore-pos-cpa", **kwargs)
     # FastMCP takes no version; without this serverInfo reports the mcp SDK's
     # version, so clients can't tell which build of ours they're talking to.
     mcp._mcp_server.version = __version__
@@ -48,7 +84,7 @@ mcp = build()
 
 
 def main() -> None:
-    mcp.run()
+    mcp.run("streamable-http" if get_transport() == HTTP else "stdio")
 
 
 if __name__ == "__main__":

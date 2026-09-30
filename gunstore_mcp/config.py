@@ -15,6 +15,24 @@ DEFAULT_WRITE_DENYLIST = (
 )
 
 
+STDIO = "stdio"
+HTTP = "http"
+_VALID_TRANSPORTS = (STDIO, HTTP)
+
+
+def get_transport() -> str:
+    """GUNSTORE_MCP_TRANSPORT: stdio (default — the local, API-key server) or
+    http (the remote connector: OAuth bearer tokens, no API key). An unknown
+    value refuses to start rather than guessing which auth model was meant."""
+    _load_env()
+    raw = (os.environ.get("GUNSTORE_MCP_TRANSPORT") or STDIO).strip().lower()
+    if raw not in _VALID_TRANSPORTS:
+        raise RuntimeError(
+            f"GUNSTORE_MCP_TRANSPORT must be one of {_VALID_TRANSPORTS} (got {raw!r})."
+        )
+    return raw
+
+
 @dataclass(frozen=True)
 class Config:
     base_url: str
@@ -22,6 +40,11 @@ class Config:
     api_secret: str
     timeout: int
     write_denylist: frozenset[str]
+    transport: str = STDIO
+    # http transport only: the public resource URL a connector is given
+    # (https://mcp.example.com/osa/cpa/mcp) and the local port behind the proxy.
+    public_url: str = ""
+    port: int = 0
 
 
 _config: Config | None = None
@@ -42,14 +65,31 @@ def get_config() -> Config:
         return _config
 
     _load_env()
+    transport = get_transport()
     base_url = (os.environ.get("FRAPPE_BASE_URL") or "").rstrip("/")
-    api_key = os.environ.get("FRAPPE_API_KEY") or ""
-    api_secret = os.environ.get("FRAPPE_API_SECRET") or ""
-    if not (base_url and api_key and api_secret):
-        raise RuntimeError(
-            "Missing Frappe credentials. Set FRAPPE_BASE_URL, FRAPPE_API_KEY and "
-            "FRAPPE_API_SECRET in mcp/.env (see mcp/.env.example)."
-        )
+    public_url = port = None
+    if transport == HTTP:
+        # The remote server holds NO key: every call carries the signed-in
+        # user's own OAuth token. A key left in the env is ignored, not used.
+        api_key = api_secret = ""
+        public_url = (os.environ.get("GUNSTORE_MCP_PUBLIC_URL") or "").rstrip("/")
+        raw_port = os.environ.get("GUNSTORE_MCP_PORT") or ""
+        local = public_url.startswith(("http://localhost:", "http://127.0.0.1:"))
+        if not (base_url and (public_url.startswith("https://") or local)
+                and public_url.endswith("/mcp") and raw_port.isdigit()):
+            raise RuntimeError(
+                "http transport needs FRAPPE_BASE_URL, GUNSTORE_MCP_PUBLIC_URL "
+                "(https://…/mcp; plain http only for localhost) and GUNSTORE_MCP_PORT."
+            )
+        port = int(raw_port)
+    else:
+        api_key = os.environ.get("FRAPPE_API_KEY") or ""
+        api_secret = os.environ.get("FRAPPE_API_SECRET") or ""
+        if not (base_url and api_key and api_secret):
+            raise RuntimeError(
+                "Missing Frappe credentials. Set FRAPPE_BASE_URL, FRAPPE_API_KEY and "
+                "FRAPPE_API_SECRET in mcp/.env (see mcp/.env.example)."
+            )
 
     raw = os.environ.get("FRAPPE_WRITE_DENYLIST")
     denylist = (
@@ -70,5 +110,8 @@ def get_config() -> Config:
         api_secret=api_secret,
         timeout=timeout,
         write_denylist=denylist,
+        transport=transport,
+        public_url=public_url or "",
+        port=port or 0,
     )
     return _config

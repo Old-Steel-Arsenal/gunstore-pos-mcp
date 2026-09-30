@@ -16,7 +16,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .config import get_config
+from .config import HTTP, get_config, get_transport
 from .modes import (
     CPA_METHOD_ALLOWLIST,
     CPA_MODE,
@@ -24,6 +24,11 @@ from .modes import (
     CpaModeRefused,
     get_mode,
 )
+
+
+class RemoteAuthMissing(RuntimeError):
+    """The remote (http) server was asked to act without the user's token, or
+    to do something only the local server may do."""
 
 
 class FrappeAPIError(RuntimeError):
@@ -63,14 +68,20 @@ def _normalize_fields(meta: Any) -> list[dict]:
 
 
 class FrappeClient:
-    def __init__(self) -> None:
+    def __init__(self, bearer: str | None = None) -> None:
         cfg = get_config()
         self.base_url = cfg.base_url
         self.timeout = cfg.timeout
         self.mode = get_mode()
+        self.remote = cfg.transport == HTTP
+        if self.remote and not bearer:
+            # Never fall back to a key on the remote server — it has none, and a
+            # call without the user's token must not run as anybody.
+            raise RemoteAuthMissing("No OAuth token on this request — reconnect the connector.")
         self.session = _build_session()
         self.session.headers.update({
-            "Authorization": f"token {cfg.api_key}:{cfg.api_secret}",
+            "Authorization": f"Bearer {bearer}" if bearer
+                else f"token {cfg.api_key}:{cfg.api_secret}",
             "Accept": "application/json",
             "Content-Type": "application/json",
         })
@@ -208,6 +219,11 @@ class FrappeClient:
         """Multipart upload to Frappe's /api/method/upload_file — the one call
         that can't go through _request (JSON-only). Returns the created File doc."""
         self._cpa_check_write("upload_file")
+        if self.remote:
+            # file_path is a path on THIS server; remotely that would let a caller
+            # upload the server's own files. The tool is not registered remotely
+            # either — this is the second lock.
+            raise RemoteAuthMissing("File upload from a server path is not available remotely.")
         url = urljoin(self.base_url + "/", "api/method/upload_file")
         data: dict[str, str] = {"is_private": "1" if is_private else "0"}
         if doctype:
@@ -274,6 +290,15 @@ _client: FrappeClient | None = None
 
 
 def get_client() -> FrappeClient:
+    """The local (stdio) server shares one API-key client. The remote (http)
+    server builds one per call from the signed-in user's bearer token, so every
+    Frappe call runs as that user."""
+    if get_transport() == HTTP:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+
+        tok = get_access_token()
+        # lazy: a fresh session per tool call; pool per token if call volume grows.
+        return FrappeClient(bearer=tok.token if tok else None)
     global _client
     if _client is None:
         _client = FrappeClient()

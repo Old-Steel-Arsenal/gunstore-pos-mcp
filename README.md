@@ -172,6 +172,31 @@ claude mcp add gunstore-pos-cpa --scope user \
 | `payroc_transactions` | every Payroc card transaction for a date range (≤31 days), read live from the gateway — counter and Woo web orders, sales / refunds / declines, portal refunds and voids included — each matched to the POS with disagreement flags; card type + last 4 only, plus the cardholder name. Needs a gunstore-pos release carrying `payroc/ledger.py`, and an API user with System Manager / Accounts Manager / Accounts User |
 | `ar_ap_summary` | aged AR / AP as of a date (Posting Date basis, 30/60/90/120). AP is not maintained in ERPNext (QuickBooks is the book; purchases are prepaid) — reference only |
 
+## Remote connector (OAuth, no API key)
+
+The same server runs as a remote MCP endpoint with `GUNSTORE_MCP_TRANSPORT=http`.
+It is an OAuth **resource server**; the **POS itself is the authorization server**
+(Frappe v16's built-in OAuth: dynamic client registration + PKCE). A user adds the
+connector URL in claude.ai (Settings → Connectors) or Claude Code
+(`claude mcp add --transport http <name> <url>`), signs in to the POS in the browser
+and approves. No key is typed anywhere, and the server holds none.
+
+- Every request carries that user's bearer token. The server checks it against the
+  POS (`frappe.auth.get_logged_user`, cached 60 s, the token never logged or cached
+  in the clear) and forwards it on every call, so **each call runs with the signed-in
+  user's own POS roles** and is logged under their name.
+- `cpa` mode keeps all three read-only layers. The full surface is **77 tools**
+  remotely: `upload_attachment` reads a path on the *server* and is never registered
+  there. The two opt-in action sets stay off.
+- Env: `GUNSTORE_MCP_TRANSPORT=http`, `FRAPPE_BASE_URL` (the store's POS, also the
+  OAuth issuer), `GUNSTORE_MCP_PUBLIC_URL` (`https://…/mcp`, the URL users are given),
+  `GUNSTORE_MCP_PORT`, `GUNSTORE_MCP_MODE`. It binds 127.0.0.1 behind a reverse
+  proxy that maps the public path to `/mcp` and forwards
+  `/.well-known/oauth-protected-resource/<public path>` unchanged.
+- POS side, once per site (OAuth Settings): *Show Auth Server Metadata* and
+  *Enable Dynamic Client Registration* on; *Skip Authorization* off (every user
+  approves). Revoke a user's access in Desk under OAuth Bearer Token.
+
 ## Security notes
 
 - Uses the key's user (Administrator) = full access. Run **locally only**; keep

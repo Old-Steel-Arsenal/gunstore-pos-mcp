@@ -31,6 +31,12 @@ GunStore-POS(Frappe/ERPNext)MCP 服务器。包内含完整 Python 包源码、`
 **B. 直接写进 settings.json 的 `env` 块**:`FRAPPE_BASE_URL`、`FRAPPE_API_KEY`、
 `FRAPPE_API_SECRET`(可选 `FRAPPE_TIMEOUT`、`FRAPPE_WRITE_DENYLIST`)。
 
+## 不想填密钥?用远程连接器
+
+同一个服务器也部署成远程连接器(OAuth):在 claude.ai「设置 → 连接器」或
+`claude mcp add --transport http <名字> <网址>` 填网址,浏览器里登录 POS 点"允许"即可,
+不用任何密钥,权限就是你 POS 账号的角色。网址向管理员要;本插件包是离线/本机备用。
+
 ## 注意
 
 - 工具名带插件前缀:`mcp__plugin_gunstore-pos_gunstore-pos__*` 与
