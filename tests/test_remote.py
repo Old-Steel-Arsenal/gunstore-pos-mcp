@@ -154,6 +154,12 @@ class Config(_Fresh, unittest.TestCase):
 			with self.assertRaises(RuntimeError):
 				config.get_config()
 
+	def test_a_trailing_slash_base_is_refused(self):
+		# https://pos.x.com/ + /connector/... = //connector: Caddy's routes would miss it.
+		with _env({**HTTP_ENV, "GUNSTORE_MCP_PUBLIC_URL": "https://pos.example.com//connector/cpa/mcp"}):
+			with self.assertRaises(RuntimeError):
+				config.get_config()
+
 	def test_plain_http_only_for_localhost(self):
 		with _env({**HTTP_ENV, "GUNSTORE_MCP_PUBLIC_URL": "http://localhost:8781/mcp"}):
 			self.assertEqual(config.get_config().public_url, "http://localhost:8781/mcp")
@@ -388,6 +394,30 @@ class Listen(_Fresh, unittest.TestCase):
 		with _env({**HTTP_ENV, "FRAPPE_INTERNAL_URL": "http://10.0.0.5:8080"}):
 			with self.assertRaises(RuntimeError):
 				config.get_config()
+
+
+class Healthcheck(unittest.TestCase):
+	def _run(self, codes):
+		from gunstore_mcp import healthcheck
+		seen = []
+
+		def status(req):
+			seen.append((req.full_url, req.headers.get("Host")))
+			return codes[len(seen) - 1]
+
+		env = {"GUNSTORE_MCP_PORT": "8781", "FRAPPE_BASE_URL": "https://pos.example.com",
+			"FRAPPE_INTERNAL_URL": "http://127.0.0.1:8080"}
+		with patch.dict(os.environ, env), patch.object(healthcheck, "_status", status):
+			return healthcheck.main(), seen
+
+	def test_healthy_needs_401_and_a_reachable_pos(self):
+		rc, seen = self._run([401, 200])
+		self.assertEqual(rc, 0)
+		self.assertEqual(seen[1], ("http://127.0.0.1:8080/api/method/ping", "pos.example.com"))
+
+	def test_unhealthy_cases(self):
+		for codes in ([200, 200], [None, 200], [403, 200], [401, None], [401, 502], [401, 404]):
+			self.assertEqual(self._run(codes)[0], 1, codes)
 
 
 if __name__ == "__main__":

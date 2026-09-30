@@ -1,0 +1,30 @@
+# Remote MCP connectors on a POS host: the read-only accountant surface (cpa) and
+# the full surface. Host networking: each binds 127.0.0.1 only (config refuses
+# anything else) and reaches the local POS frontend on 127.0.0.1:8080; the host's
+# Caddy fronts them (deploy/caddy-connector.caddy). No secrets anywhere — every
+# call carries the signed-in user's own OAuth token.
+#
+#   cd ~/gunstore-pos-mcp/deploy && docker compose pull && docker compose up -d
+name: gunstore-mcp
+x-common: &common
+  # Pinned: set MCP_TAG in .env to a tested build (sha-<7> or a version).
+  image: ghcr.io/xuanji86/gunstore-pos-mcp:${MCP_TAG:?set MCP_TAG in .env (sha-<7> or a version)}
+  network_mode: host
+  restart: unless-stopped
+  env_file: .env
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "5"}
+services:
+  mcp-cpa:
+    <<: *common
+    environment:
+      GUNSTORE_MCP_MODE: cpa
+      GUNSTORE_MCP_PORT: "8781"
+      GUNSTORE_MCP_PUBLIC_URL: ${FRAPPE_BASE_URL:?set FRAPPE_BASE_URL in .env}/connector/cpa/mcp
+  mcp-full:
+    <<: *common
+    environment:
+      GUNSTORE_MCP_MODE: full
+      GUNSTORE_MCP_PORT: "8782"
+      GUNSTORE_MCP_PUBLIC_URL: ${FRAPPE_BASE_URL:?set FRAPPE_BASE_URL in .env}/connector/full/mcp

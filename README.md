@@ -206,6 +206,9 @@ and approves. No key is typed anywhere, and the server holds none.
   POS frontend — calls then go there directly with the site's Host header). It runs
   on the POS host behind that host's reverse proxy, which maps the public path to
   `/mcp` and forwards `/.well-known/oauth-protected-resource/<public path>` unchanged.
+- Deployment: a container per surface on each store's POS host, behind that host's
+  Caddy — image `ghcr.io/xuanji86/gunstore-pos-mcp` (built on every push to main),
+  steps in `deploy/README.md`.
 - POS side, once per site (OAuth Settings): *Show Auth Server Metadata* and
   *Enable Dynamic Client Registration* on; *Skip Authorization* off (every user
   approves). Revoke a user's access in Desk under OAuth Bearer Token.
