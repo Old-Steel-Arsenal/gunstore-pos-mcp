@@ -100,13 +100,13 @@ class FrappeClient:
 
     # -------------------------------------------------- HTTP plumbing
     def _request(self, method: str, path: str, *, params: dict | None = None,
-                 json_body: Any = None) -> Any:
+                 json_body: Any = None, timeout: int | None = None) -> Any:
         url = urljoin(self.base_url + "/", path.lstrip("/"))
         resp = self.session.request(
             method, url,
             params=params,
             data=json.dumps(json_body) if json_body is not None else None,
-            timeout=self.timeout,
+            timeout=timeout or self.timeout,
         )
         if resp.status_code >= 400:
             raise self._error(resp)
@@ -180,9 +180,11 @@ class FrappeClient:
         return self._request("DELETE", self._res(doctype, name))
 
     # -------------------------------------------------- method / report ops
-    def call_method(self, method: str, kwargs: dict | None = None) -> Any:
+    def call_method(self, method: str, kwargs: dict | None = None, *,
+                    timeout: int | None = None) -> Any:
         self._cpa_check_method(method)
-        return self._request("POST", f"/api/method/{method}", json_body=kwargs or {})
+        return self._request("POST", f"/api/method/{method}", json_body=kwargs or {},
+                             timeout=timeout)
 
     def submit_document(self, doctype: str, name: str) -> Any:
         self._cpa_check_write("submit_document")

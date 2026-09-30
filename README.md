@@ -78,10 +78,10 @@ Secrets stay in `.env` (loaded by the server), not in the agent config.
 
 > **中文速查手册（按"你想干什么"组织，含安全须知与替代路径）：[TOOLS.md](TOOLS.md)**
 
-84 tools total: 10 generic + 56 curated + 12 distributor + 6 CPA reports; 77 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
+85 tools total: 10 generic + 56 curated + 12 distributor + 7 CPA reports; 78 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
 
 **Modes**: `GUNSTORE_MCP_MODE=cpa` starts a read-only accountant surface —
-exactly 19 tools (the write surface is never registered), a per-name read-only
+exactly 20 tools (the write surface is never registered), a per-name read-only
 method allowlist at the client layer, and the 7 integration Settings doctypes
 blocked from reads. Default (`full`) is the whole surface. Register a second
 server entry (e.g. `gunstore-pos-cpa`) with the same command plus
@@ -106,7 +106,7 @@ claude mcp add gunstore-pos-cpa --scope user \
   so env vars set in the registration win. A standalone install needs no
   `.env` file at all — and the same checkout can serve several entries with
   different `FRAPPE_BASE_URL` / mode combinations (e.g. a dev-site instance).
-- **Verify**: after connecting, `tools/list` must show exactly **19** tools and
+- **Verify**: after connecting, `tools/list` must show exactly **20** tools and
   the server name `gunstore-pos-cpa`. A misspelled/unknown mode value refuses
   to start (fail-closed) rather than silently degrading to the writable surface.
 - **Security boundary — read before handing this to a third party**: the
@@ -169,6 +169,7 @@ claude mcp add gunstore-pos-cpa --scope user \
 | `gl_entries` | GL rows for a date range (`is_cancelled=0` always; explicit `truncated:true`) |
 | `financial_statement` | P&L / Balance Sheet (Date Range) / Trial Balance (fiscal-year auto-resolved) |
 | `tax_liability` | sales-tax liability roll-forward from the GL — accounts resolved from the default sales-tax template, vouchers bucketed fail-closed, cent-exact identity asserted |
+| `payroc_transactions` | every Payroc card transaction for a date range (≤31 days), read live from the gateway — counter and Woo web orders, sales / refunds / declines, portal refunds and voids included — each matched to the POS with disagreement flags; card type + last 4 only, plus the cardholder name. Needs a gunstore-pos release carrying `payroc/ledger.py`, and an API user with System Manager / Accounts Manager / Accounts User |
 | `ar_ap_summary` | aged AR / AP as of a date (Posting Date basis, 30/60/90/120). AP is not maintained in ERPNext (QuickBooks is the book; purchases are prepaid) — reference only |
 
 ## Security notes

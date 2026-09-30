@@ -244,16 +244,16 @@ GunBroker 上一条 listing 就是一把枪。
 
 ## 10. CPA 模式（只读会计面）+ 报表工具包
 
-**模式开关**：启动环境变量 `GUNSTORE_MCP_MODE=cpa`（默认 `full` = 全部 84 工具中默认注册 77（4 个分销商队列动作 + 3 个 GunBroker 写动作需显式开启），行为与以前完全一致；未知值直接拒绝启动，不会静默降级成可写）。cpa 模式给会计/CPA 用：**写面在工具列表里物理不存在**，不是"存在但会拒绝"。三层防御，缺一层其余仍兜底：
+**模式开关**：启动环境变量 `GUNSTORE_MCP_MODE=cpa`（默认 `full` = 全部 85 工具中默认注册 78（4 个分销商队列动作 + 3 个 GunBroker 写动作需显式开启），行为与以前完全一致；未知值直接拒绝启动，不会静默降级成可写）。cpa 模式给会计/CPA 用：**写面在工具列表里物理不存在**，不是"存在但会拒绝"。三层防御，缺一层其余仍兜底：
 
-1. **注册层**：tools/list 恰好 = 下面 19 个名字（集合相等，测试钉死）；
+1. **注册层**：tools/list 恰好 = 下面 20 个名字（集合相等，测试钉死）；
 2. **客户端层**：一切写方法 + 未逐一列名的点路径方法（`frappe_run_method` 整个不注册）→ `CpaModeRefused`；只读点路径 allowlist 逐一列名，禁通配；
 3. **Settings 层**：7 个集成 Settings doctype 的 get/list 读也被挡（配置面对会计无用，密码遮蔽是框架行为不是本仓保证）。
 
-**cpa 模式的 19 个工具**：
+**cpa 模式的 20 个工具**：
 - 通用查（4）：`frappe_list_documents` / `frappe_get_document` / `frappe_describe_doctype` / `frappe_run_report`
 - 业务只读（9）：`find_item` / `item_stock` / `firearms_in_stock` / `pending_orders` / `pending_web_orders` / `consignment_queue` / `consignment_dealers` / `consignment_serials` / `consignment_dealer_orders`
-- 报表工具包（6，见下；**full 模式同样可用**）
+- 报表工具包（7，见下；**full 模式同样可用**）
 
 注意 cpa 模式**没有** `available_serials`（其默认剔除寄售/暂扣枪，在盘点语境会漏枪——盘点用 `firearms_in_stock`）。
 
@@ -268,6 +268,7 @@ GunBroker 上一条 listing 就是一把枪。
 | 追总账明细 | `gl_entries(from_date, to_date, account?, party?, voucher_no?, voucher_type?, limit=500)` | 恒定 `is_cancelled=0`（cancel+amend 被撤单自动出列）；**截断显式** `truncated:true`，绝不静默截断；limit 夹 1..5000（0/空按 500），更多行用日期范围分页；单公司口径——多公司化需补 company filter |
 | 跑三大财务报表 | `financial_statement(statement, from_date, to_date, periodicity="Monthly")` | statement: `pnl` / `balance_sheet` / `trial_balance`；P&L/BS 走 Date Range;Trial Balance 需日期落在同一 Fiscal Year（自动解析,跨年拒绝） |
 | 查期间销售税负债滚动表 | `tax_liability(from_date, to_date)` | opening/collected/remitted/closing 按 voucher 分列,非常规 voucher fail-closed 单列;科目动态解析自默认销售税模板;**注意发票的 "Total Taxes and Charges" 含运费,不是销售税** |
+| 查 Payroc 刷卡流水并和 POS 对账（柜台+网单） | `payroc_transactions(from_date, to_date)` | 实时读 Payroc 网关、按日期列出全部交易（type = SALE / REFUND；status 里有 COMPLETE / READY / DECLINED / VOID 等；含 portal 里做的退款与作废），逐行按 orderId 对到 POS（柜台 = POS/Sales Invoice 名，网单 = Woo 订单号）；`flags` 标出不一致:POS 无记录 / 金额不符 / POS 记已收但网关作废 / 退款 POS 未记;`pos_only` = POS 记了但日期搜索没返回的(逐笔回查);`summary` 只算钱实际在手的(COMPLETE/READY);卡号只出类型+后 4 位;每次最多 31 天,`truncated:true`(服务端翻页约 75 秒封顶)就拆段查;API 用户需 System Manager / Accounts Manager / Accounts User 之一;需要带 `payroc/ledger.py` 的 POS 版本;只读 |
 | 查应收/应付账龄 | `ar_ap_summary(kind, as_on_date)` | kind: `ar` / `ap`;Posting Date 基准,30/60/90/120 账龄桶;寄售结算应收在 AR 里按经销商列示。**`ap` 不适用**:账本在 QuickBooks、进货预付,ERPNext 不录 Purchase Invoice(直发单的 RSR 应付除外) |
 
 **月结/报税常用标准报表**（`frappe_run_report` 直跑,键名已核对 ERPNext v16 源码）：
@@ -297,5 +298,5 @@ GunBroker 上一条 listing 就是一把枪。
 
 ---
 
-*工具总数 84（10 个通用 + 56 个专用 + 12 个分销商 + 6 个报表），默认注册 77（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 19 个。对应版本 v0.5.0；工具行为以 README.md
+*工具总数 85（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表），默认注册 78（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 20 个。对应版本 v0.6.0；工具行为以 README.md
 和源码 `gunstore_mcp/tools/` 为准。*
