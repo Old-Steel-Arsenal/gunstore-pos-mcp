@@ -25,6 +25,7 @@ import re
 import unittest
 from unittest.mock import patch
 
+from gunstore_mcp import config
 from gunstore_mcp.modes import CPA_TOOL_NAMES
 from gunstore_mcp.tools import curated, distributor, generic, reports
 
@@ -43,11 +44,11 @@ class _FakeMCP:
         return deco
 
 
-_GATES = (distributor.ACTIONS_ENV, curated.GUNBROKER_ACTIONS_ENV)
+_GATES = (distributor.ACTIONS_ENV, curated.GUNBROKER_ACTIONS_ENV, "GUNSTORE_MCP_TRANSPORT")
 
 
 def _names(module, *, actions: str | None = None,
-           gb_actions: str | None = None) -> frozenset:
+           gb_actions: str | None = None, transport: str | None = None) -> frozenset:
     # Both registration gates are cleared first, then set explicitly. A stray
     # GUNSTORE_MCP_* in the developer's shell must not be able to decide what
     # "the live surface" is, or these counts would differ per machine.
@@ -56,13 +57,16 @@ def _names(module, *, actions: str | None = None,
         env[distributor.ACTIONS_ENV] = actions
     if gb_actions is not None:
         env[curated.GUNBROKER_ACTIONS_ENV] = gb_actions
+    if transport is not None:
+        env["GUNSTORE_MCP_TRANSPORT"] = transport
     mcp = _FakeMCP()
     # _load_env stubbed for the same reason as in test_distributor: a developer's own
     # mcp/.env must not be able to decide what "the live surface" is here, or this
     # guard would pass or fail depending on whose machine it runs on.
     with patch.dict(os.environ, env, clear=True), \
             patch.object(distributor, "_load_env", lambda: None), \
-            patch.object(curated, "_load_env", lambda: None):
+            patch.object(curated, "_load_env", lambda: None), \
+            patch.object(config, "_load_env", lambda: None):
         module.register(mcp)
     return frozenset(mcp.tools)
 
@@ -96,11 +100,17 @@ def _live() -> dict:
         "total": generic_n + cur_on + dist_on + reports_n,
         "default": generic_n + cur_off + dist_off + reports_n,
         "cpa_surface": len(CPA_TOOL_NAMES),
+        # the remote connector's full surface: the default minus the tools that
+        # read a path on the server (upload_attachment), never registered remotely.
+        "remote_default": generic_n + len(_names(curated, transport="http"))
+            + dist_off + reports_n,
     }
 
 
 # (file, regex with ONE capture group, which live count it must equal)
 CLAIMS = [
+    ("README.md", r"\*\*(\d+) tools\*\*\s*remotely", "remote_default"),
+    ("TOOLS.md", r"全量面远程是 (\d+) 个", "remote_default"),
     ("README.md", r"(\d+) tools total", "total"),
     ("README.md", r"(\d+) generic", "generic"),
     ("README.md", r"(\d+) curated", "curated"),

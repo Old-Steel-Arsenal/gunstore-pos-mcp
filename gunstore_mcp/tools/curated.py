@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from ..config import _load_env
+from ..config import HTTP, _load_env, get_transport
 from ..frappe_client import get_client
 from ..safety import (check_fields_writable, require_confirm, require_reason,
                       strip_passwords, stripped_note)
@@ -870,18 +870,21 @@ def register(mcp: Any) -> None:
 
     # ---- I. file upload ----------------------------------------------------------
 
-    @mcp.tool()
-    def upload_attachment(
-        file_path: str, doctype: str | None = None, name: str | None = None,
-        fieldname: str | None = None, is_private: bool = True,
-    ) -> Any:
-        """Upload a LOCAL file to the POS as a File document, optionally attached to
-        a document (doctype + name) and/or set into its Attach field (fieldname).
-        Returns the File doc incl. file_url. Default is_private=true — product
-        photos that WooCommerce must sideload need is_private=false. For bulk
-        photo+gallery imports prefer the firearm-listing-import script (it resizes
-        images first; oversized originals break the Woo push)."""
-        return get_client().upload_file(
-            file_path, doctype=doctype, docname=name,
-            fieldname=fieldname, is_private=is_private,
-        )
+    # Remote (http) servers never register it: file_path is a path on the SERVER,
+    # so a remote caller could upload the server's own files (env, keys).
+    if get_transport() != HTTP:
+        @mcp.tool()
+        def upload_attachment(
+            file_path: str, doctype: str | None = None, name: str | None = None,
+            fieldname: str | None = None, is_private: bool = True,
+        ) -> Any:
+            """Upload a LOCAL file to the POS as a File document, optionally attached to
+            a document (doctype + name) and/or set into its Attach field (fieldname).
+            Returns the File doc incl. file_url. Default is_private=true — product
+            photos that WooCommerce must sideload need is_private=false. For bulk
+            photo+gallery imports prefer the firearm-listing-import script (it resizes
+            images first; oversized originals break the Woo push)."""
+            return get_client().upload_file(
+                file_path, doctype=doctype, docname=name,
+                fieldname=fieldname, is_private=is_private,
+            )

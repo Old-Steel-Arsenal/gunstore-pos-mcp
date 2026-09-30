@@ -4,6 +4,8 @@ gunstore-pos 平台的 MCP server 源码仓(85 工具 = 10 个通用 Frappe CRUD
 
 **模式**:`GUNSTORE_MCP_MODE=cpa` 启动只读会计面(恰 20 工具,写面物理不注册 + client 层方法 allowlist + Settings 读 blocklist 三层防御,见 `gunstore_mcp/modes.py`);默认 `full` 全量。未知模式值拒绝启动(fail-closed)。
 
+**传输**:`GUNSTORE_MCP_TRANSPORT=stdio`(默认,本机 API key)| `http`(远程连接器:POS 当 OAuth 授权服务器,本服务器只验并转发用户自己的 bearer,**不持有任何 key**;`upload_attachment` 远程物理不注册;未知值拒启)。见 README「Remote connector」与 `gunstore_mcp/auth.py`。
+
 **两个动作闸**(互相独立,也都独立于 `GUNSTORE_MCP_MODE`;开任何一个都**不会**给 cpa 面加工具):
 - `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1` → 那 4 个分销商动作(confirm/cancel/reroute/update_order_ffl)
 - `GUNSTORE_MCP_GUNBROKER_ACTIONS=1` → `gb_push_serial` / `gb_end_listing` / `gb_pull_orders`(**只有写的那三个**;`gb_test_connection` / `gb_listing_status` 永远注册——查看和探活正是你希望人在动手前先做的事)。`gb_pull_orders` 只是"拉订单"却也在闸内:导进来一张订单会建 POS 单据并**预留那把枪**

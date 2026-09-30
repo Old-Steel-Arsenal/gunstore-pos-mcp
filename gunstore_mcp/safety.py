@@ -66,7 +66,18 @@ MCP_NEVER_WRITES: dict[str, frozenset[str]] = {
 }
 
 _PW_TTL = 600.0  # re-describe a doctype's Password fields at most every 10 min
-_pw_cache: dict[str, tuple[float, frozenset[str]]] = {}
+# Keyed by (user, doctype): on the remote server each user's describe runs with
+# THEIR roles, and a partial answer for one user must never stand in for another.
+_pw_cache: dict[tuple[str, str], tuple[float, frozenset[str]]] = {}
+
+
+def _cache_user() -> str:
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+        tok = get_access_token()
+    except Exception:
+        tok = None
+    return tok.client_id if tok else ""
 
 
 class WriteRefused(RuntimeError):
@@ -75,7 +86,8 @@ class WriteRefused(RuntimeError):
 
 def _password_fields(doctype: str) -> frozenset[str]:
     now = time.monotonic()
-    hit = _pw_cache.get(doctype)
+    key = (_cache_user(), doctype)
+    hit = _pw_cache.get(key)
     if hit and now - hit[0] < _PW_TTL:
         return hit[1]
     fields = get_client().describe_doctype(doctype)
@@ -84,7 +96,7 @@ def _password_fields(doctype: str) -> frozenset[str]:
         if f.get("fieldtype") == "Password" and f.get("fieldname")
     )
     if fields:  # never cache an empty result from a failed describe
-        _pw_cache[doctype] = (now, pw)
+        _pw_cache[key] = (now, pw)
     return pw
 
 
