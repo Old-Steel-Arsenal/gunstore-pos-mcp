@@ -67,7 +67,8 @@ class ThreadedMCP:
 
         def deco(fn):
             if inspect.iscoroutinefunction(fn):
-                return real(fn)
+                # Would skip the audit record; wrap it here before allowing one.
+                raise RuntimeError(f"async tool {fn.__name__} has no audited remote path.")
 
             @functools.wraps(fn)
             async def threaded(*a, **kw):
@@ -119,7 +120,7 @@ def _http_settings() -> dict:
         # that request's token (a refreshed one included), nothing is kept between
         # requests, and a session id is not a credential anybody could replay.
         "stateless_http": True,
-        "token_verifier": FrappeTokenVerifier(cfg.backend_url, cfg.backend_host),
+        "token_verifier": FrappeTokenVerifier(cfg.backend_url, cfg.backend_host, cfg.timeout),
         "auth": AuthSettings(issuer_url=cfg.base_url, resource_server_url=cfg.public_url),
         # Bound to loopback, the SDK would otherwise allow only localhost Host
         # headers and refuse every request the proxy forwards.

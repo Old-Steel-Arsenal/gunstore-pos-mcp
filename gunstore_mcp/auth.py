@@ -20,6 +20,8 @@ from collections import OrderedDict
 import requests
 from mcp.server.auth.provider import AccessToken
 
+from .frappe_client import remote_session
+
 IDENTITY = "/api/method/ffl_core.api.connector.connector_identity"
 # How long a positive answer is reused. Short on purpose: a token revoked in the
 # POS stops working here within this window.
@@ -59,7 +61,8 @@ class FrappeTokenVerifier:
         if self.host_header:
             headers["Host"] = self.host_header
         try:
-            resp = requests.get(self.backend_url + IDENTITY, headers=headers, timeout=self.timeout)
+            resp = remote_session().get(self.backend_url + IDENTITY, headers=headers,
+                                        timeout=self.timeout)
         except requests.RequestException as e:
             raise AuthUnavailable(f"POS unreachable: {type(e).__name__}") from None
         if resp.status_code in (401, 403, 417):

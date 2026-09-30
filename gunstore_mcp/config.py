@@ -99,6 +99,9 @@ def get_config() -> Config:
         if internal and not internal.startswith(("http://127.0.0.1:", "http://localhost:")):
             raise RuntimeError("FRAPPE_INTERNAL_URL must be a loopback URL (http://127.0.0.1:<port>).")
         host = (os.environ.get("GUNSTORE_MCP_HOST") or "127.0.0.1").strip()
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            # Plain HTTP carrying users' tokens: only the local proxy may reach it.
+            raise RuntimeError("GUNSTORE_MCP_HOST must be a loopback address (run with host networking).")
     else:
         api_key = os.environ.get("FRAPPE_API_KEY") or ""
         api_secret = os.environ.get("FRAPPE_API_SECRET") or ""

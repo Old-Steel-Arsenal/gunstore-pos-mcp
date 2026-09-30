@@ -45,17 +45,32 @@ def _resp(status, body):
 	return r
 
 
+class _Pool:
+	"""Stands in for the shared remote pool in verifier tests."""
+
+	def get(self, *a, **k):  # replaced per test
+		raise AssertionError("unpatched")
+
+
+_POOL = _Pool()
+
+
 def _me(user="cpa@x.com", connector=True):
 	return _resp(200, {"message": {"user": user, "connector": connector, "client_name": "Claude"}})
 
 
 class Verifier(unittest.TestCase):
+	def setUp(self):
+		p = patch.object(auth, "remote_session", lambda: _POOL)
+		p.start()
+		self.addCleanup(p.stop)
+
 	def _verify(self, v, token):
 		return asyncio.run(v.verify_token(token))
 
 	def test_connector_user_is_accepted_and_cached(self):
 		v = auth.FrappeTokenVerifier("http://127.0.0.1:8080", "pos.example.com")
-		with patch.object(auth.requests, "get", return_value=_me()) as get:
+		with patch.object(_POOL, "get", return_value=_me()) as get:
 			tok = self._verify(v, "T1")
 			again = self._verify(v, "T1")
 		self.assertEqual((tok.client_id, tok.token), ("cpa@x.com", "T1"))
@@ -70,7 +85,7 @@ class Verifier(unittest.TestCase):
 		# #9: a token the POS issued to an OAuth app created in Desk never drives the MCP.
 		v = auth.FrappeTokenVerifier("https://pos.example.com")
 		for resp in (_me(connector=False), _me(user="Guest"), _resp(403, {}), _resp(401, {})):
-			with patch.object(auth.requests, "get", return_value=resp):
+			with patch.object(_POOL, "get", return_value=resp):
 				self.assertIsNone(self._verify(v, f"T-{id(resp)}"))
 		self.assertIsNone(self._verify(v, ""))
 
@@ -82,15 +97,15 @@ class Verifier(unittest.TestCase):
 		bad_json.json.side_effect = ValueError()
 		for kw in ({"return_value": _resp(502, {})}, {"return_value": _resp(429, {})},
 				{"return_value": bad_json}, {"side_effect": auth.requests.ConnectionError()}):
-			with patch.object(auth.requests, "get", **kw):
+			with patch.object(_POOL, "get", **kw):
 				with self.assertRaises(auth.AuthUnavailable):
 					self._verify(v, "VALID")
-		with patch.object(auth.requests, "get", return_value=_me()):
+		with patch.object(_POOL, "get", return_value=_me()):
 			self.assertEqual(self._verify(v, "VALID").client_id, "cpa@x.com")
 
 	def test_rejections_are_cached_briefly(self):
 		v = auth.FrappeTokenVerifier("https://pos.example.com")
-		with patch.object(auth.requests, "get", return_value=_resp(401, {})) as get:
+		with patch.object(_POOL, "get", return_value=_resp(401, {})) as get:
 			self.assertIsNone(self._verify(v, "BOGUS"))
 			self.assertIsNone(self._verify(v, "BOGUS"))
 		get.assert_called_once()
@@ -98,7 +113,7 @@ class Verifier(unittest.TestCase):
 	def test_cache_is_bounded(self):
 		v = auth.FrappeTokenVerifier("https://pos.example.com")
 		with patch.object(auth, "CACHE_MAX", 3), \
-				patch.object(auth.requests, "get", return_value=_resp(401, {})):
+				patch.object(_POOL, "get", return_value=_resp(401, {})):
 			for i in range(10):
 				self._verify(v, f"FLOOD-{i}")
 		self.assertEqual(len(v._cache), 3)
@@ -209,7 +224,8 @@ class HttpApp(_Fresh, unittest.TestCase):
 			"bearer_methods_supported": ["header"]})
 
 	def test_proxied_host_header_is_accepted(self):
-		with patch.object(auth.requests, "get", return_value=_resp(401, {})):
+		with patch.object(auth, "remote_session", lambda: _POOL), \
+				patch.object(_POOL, "get", return_value=_resp(401, {})):
 			r = self._client().post("/mcp", json={}, headers={"Authorization": "Bearer nope"})
 		# 401 from auth, not 421 from DNS-rebinding protection: the proxy's Host passes.
 		self.assertEqual(r.status_code, 401)
@@ -235,7 +251,9 @@ class HttpApp(_Fresh, unittest.TestCase):
 
 		users = {"TOKEN-A": "a@x.com", "TOKEN-B": "b@x.com"}
 		out = []
+		from gunstore_mcp import audit
 		with patch.object(auth.FrappeTokenVerifier, "_identity", lambda s, t: users.get(t, "")), \
+				patch.object(audit, "_submit", lambda fn, *a: fn(*a)), \
 				patch.object(frappe_client.requests.Session, "request", fake_request), \
 				patch.object(frappe_client.requests.Session, "post", fake_post), \
 				_env({**HTTP_ENV, "GUNSTORE_MCP_MODE": "cpa"}):
@@ -286,13 +304,60 @@ class HttpApp(_Fresh, unittest.TestCase):
 					self._mcp({gate: "1"})
 
 
+class AuditMask(unittest.TestCase):
+	def test_credentials_are_masked_before_leaving_the_process(self):
+		from gunstore_mcp import audit
+		masked = audit._mask({"doctype": "GunBroker Settings", "dev_key": "abc",
+			"values": {"consumer_key": "ck", "password": "x", "qty": 3}, "rows": [{"api_key": "k"}]})
+		self.assertEqual(masked, {"doctype": "GunBroker Settings", "dev_key": "***",
+			"values": {"consumer_key": "***", "password": "***", "qty": 3}, "rows": [{"api_key": "***"}]})
+
+
+class SharedPool(_Fresh, unittest.TestCase):
+	def test_the_shared_pool_keeps_no_cookies(self):
+		"""A login through one user's call must not leave a session cookie that the
+		next user's request would carry."""
+		import threading
+		from http.server import BaseHTTPRequestHandler, HTTPServer
+
+		seen = []
+
+		class H(BaseHTTPRequestHandler):
+			def do_GET(self):
+				seen.append(self.headers.get("Cookie"))
+				self.send_response(200)
+				self.send_header("Set-Cookie", "sid=abc; Path=/")
+				self.send_header("Content-Length", "0")
+				self.end_headers()
+
+			def log_message(self, *a):
+				pass
+
+		srv = HTTPServer(("127.0.0.1", 0), H)
+		threading.Thread(target=srv.serve_forever, daemon=True).start()
+		self.addCleanup(srv.shutdown)
+		url = f"http://127.0.0.1:{srv.server_port}/api/method/login"
+		with patch.object(frappe_client, "_remote_session", None):
+			s = frappe_client.remote_session()
+			s.get(url)
+			s.get(url)
+		self.assertEqual(len(s.cookies), 0)
+		self.assertEqual(seen, [None, None], "the second request must not carry the first's cookie")
+
+
 class Listen(_Fresh, unittest.TestCase):
 	def test_listen_host_and_internal_backend(self):
-		with _env({**HTTP_ENV, "GUNSTORE_MCP_HOST": "0.0.0.0",
+		with _env({**HTTP_ENV, "GUNSTORE_MCP_HOST": "localhost",
 				"FRAPPE_INTERNAL_URL": "http://127.0.0.1:8080"}):
 			cfg = config.get_config()
 		self.assertEqual((cfg.host, cfg.backend_url, cfg.backend_host, cfg.base_url),
-			("0.0.0.0", "http://127.0.0.1:8080", "pos.example.com", "https://pos.example.com"))
+			("localhost", "http://127.0.0.1:8080", "pos.example.com", "https://pos.example.com"))
+
+	def test_listen_host_must_be_loopback(self):
+		# Plain HTTP carrying users' tokens: never on a public interface.
+		with _env({**HTTP_ENV, "GUNSTORE_MCP_HOST": "0.0.0.0"}):
+			with self.assertRaises(RuntimeError):
+				config.get_config()
 
 	def test_internal_backend_must_be_loopback(self):
 		with _env({**HTTP_ENV, "FRAPPE_INTERNAL_URL": "http://10.0.0.5:8080"}):

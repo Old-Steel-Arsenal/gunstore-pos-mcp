@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from http.cookiejar import DefaultCookiePolicy
 from typing import Any
 from urllib.parse import quote, urljoin
 
@@ -34,7 +35,11 @@ def remote_session() -> requests.Session:
     """One connection pool for the whole remote process (headers stay per call)."""
     global _remote_session
     if _remote_session is None:
-        _remote_session = _build_session()
+        s = _build_session()
+        # Shared by every user: a Set-Cookie (a login, a session) must never be
+        # replayed on somebody else's request.
+        s.cookies.set_policy(DefaultCookiePolicy(allowed_domains=[]))
+        _remote_session = s
     return _remote_session
 
 
