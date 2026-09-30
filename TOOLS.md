@@ -255,7 +255,7 @@ GunBroker 上一条 listing 就是一把枪。
 - 业务只读（9）：`find_item` / `item_stock` / `firearms_in_stock` / `pending_orders` / `pending_web_orders` / `consignment_queue` / `consignment_dealers` / `consignment_serials` / `consignment_dealer_orders`
 - 报表工具包（7，见下；**full 模式同样可用**）
 
-**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**;cpa 三层闸照旧;全量面远程是 77 个(`upload_attachment` 读服务器本地路径,远程永不注册)。细节见 README「Remote connector」。
+**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**,只收 Claude 连接器(动态注册的客户端)签出的令牌,**每次调用都在 POS 的 Activity Log 留记录**(谁、哪个连接器、哪个工具、参数、成败;记不上就不执行);cpa 三层闸照旧;全量面远程是 77 个(`upload_attachment` 读服务器本地路径,远程永不注册)。细节见 README「Remote connector」。
 
 注意 cpa 模式**没有** `available_serials`（其默认剔除寄售/暂扣枪，在盘点语境会漏枪——盘点用 `firearms_in_stock`）。
 

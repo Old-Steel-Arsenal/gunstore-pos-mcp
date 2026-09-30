@@ -2,26 +2,40 @@
 
 The POS (Frappe) is the authorization server: the connector registers itself
 there, the user signs in to the POS and approves, and every request then arrives
-with that user's bearer token. This module only answers "is this token a signed-in
-POS user right now?" — by asking the POS itself — so no key, secret or user
-database lives here. The same token is then forwarded on every Frappe call
-(frappe_client.get_client), so each call runs with that user's own roles.
+with that user's bearer token. This module only answers "is this a live token of
+a POS user, issued to a connector?" — by asking the POS itself
+(ffl_core.api.connector.connector_identity) — so no key, secret or user database
+lives here. Tokens issued to OAuth apps created in Desk are refused: only a
+client made by dynamic registration (a connector) may drive the MCP. The same
+token is then forwarded on every Frappe call (frappe_client.get_client), so each
+call runs with that user's own roles.
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import time
+from collections import OrderedDict
 
 import requests
 from mcp.server.auth.provider import AccessToken
 
+IDENTITY = "/api/method/ffl_core.api.connector.connector_identity"
 # How long a positive answer is reused. Short on purpose: a token revoked in the
 # POS stops working here within this window.
 CACHE_SECONDS = 60
-# A rejected token is remembered briefly too, so a flood of bogus bearers costs
-# one POS round-trip each per window rather than one per request.
+# A token the POS rejected is remembered briefly, so repeating one bad token
+# costs one POS round-trip per window.
 REJECT_SECONDS = 30
+# lazy: a plain LRU bound; a flood of DISTINCT bogus tokens still costs one POS
+# call each — rate-limit at the proxy if that ever shows up.
+CACHE_MAX = 5000
+
+
+class AuthUnavailable(RuntimeError):
+    """The POS could not answer (restarting, 5xx, rate-limited, not JSON). Not
+    a verdict on the token: nothing is cached and the request fails with a
+    server error, so clients retry instead of throwing their token away."""
 
 
 def _key(token: str) -> str:
@@ -30,31 +44,36 @@ def _key(token: str) -> str:
 
 
 class FrappeTokenVerifier:
-    """mcp TokenVerifier: a token is valid iff the POS says it belongs to a
-    signed-in, non-Guest user."""
+    """mcp TokenVerifier backed by the POS."""
 
-    def __init__(self, base_url: str, timeout: int = 10) -> None:
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, backend_url: str, host_header: str = "", timeout: int = 10) -> None:
+        self.backend_url = backend_url.rstrip("/")
+        self.host_header = host_header
         self.timeout = timeout
-        self._cache: dict[str, tuple[float, str | None]] = {}
+        self._cache: OrderedDict[str, tuple[float, str]] = OrderedDict()
 
-    def _logged_user(self, token: str) -> str | None:
-        """The token's user; "" = the POS said no; None = no answer (network)."""
+    def _identity(self, token: str) -> str:
+        """The token's user; "" when the POS refuses it. Raises AuthUnavailable
+        when the POS gives no verdict."""
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        if self.host_header:
+            headers["Host"] = self.host_header
         try:
-            resp = requests.get(
-                f"{self.base_url}/api/method/frappe.auth.get_logged_user",
-                headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-                timeout=self.timeout,
-            )
-        except requests.RequestException:
-            return None
+            resp = requests.get(self.backend_url + IDENTITY, headers=headers, timeout=self.timeout)
+        except requests.RequestException as e:
+            raise AuthUnavailable(f"POS unreachable: {type(e).__name__}") from None
+        if resp.status_code in (401, 403, 417):
+            return ""
         if resp.status_code != 200:
-            return ""
+            raise AuthUnavailable(f"POS answered {resp.status_code}")
         try:
-            user = (resp.json() or {}).get("message")
+            me = (resp.json() or {}).get("message") or {}
         except ValueError:
+            raise AuthUnavailable("POS answered non-JSON") from None
+        user = me.get("user") if isinstance(me, dict) else None
+        if not user or user == "Guest" or not me.get("connector"):
             return ""
-        return user if user and user != "Guest" else ""
+        return user
 
     async def verify_token(self, token: str) -> AccessToken | None:
         if not token:
@@ -63,17 +82,14 @@ class FrappeTokenVerifier:
         key = _key(token)
         hit = self._cache.get(key)
         if hit and hit[0] > now:
+            self._cache.move_to_end(key)
             user = hit[1]
         else:
-            user = await asyncio.to_thread(self._logged_user, token)
-            if user is None:
-                # The POS did not answer: reject this request, remember nothing —
-                # a valid user must not be locked out for a network blip.
-                return None
-            # Drop expired entries on every write: refreshed tokens are new keys,
-            # so nothing else would ever remove the old ones.
-            self._cache = {k: v for k, v in self._cache.items() if v[0] > now}
+            user = await asyncio.to_thread(self._identity, token)
             self._cache[key] = (now + (CACHE_SECONDS if user else REJECT_SECONDS), user)
+            self._cache.move_to_end(key)
+            while len(self._cache) > CACHE_MAX:
+                self._cache.popitem(last=False)
         if not user:
             return None
         return AccessToken(token=token, client_id=user, scopes=[])

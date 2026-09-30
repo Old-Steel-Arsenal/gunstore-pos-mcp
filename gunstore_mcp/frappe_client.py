@@ -26,6 +26,37 @@ from .modes import (
 )
 
 
+_remote_session: requests.Session | None = None
+_mode_once: str | None = None
+
+
+def remote_session() -> requests.Session:
+    """One connection pool for the whole remote process (headers stay per call)."""
+    global _remote_session
+    if _remote_session is None:
+        _remote_session = _build_session()
+    return _remote_session
+
+
+def _remote_mode() -> str:
+    global _mode_once
+    if _mode_once is None:
+        _mode_once = get_mode()
+    return _mode_once
+
+
+def backend_headers(bearer: str) -> dict:
+    """Per-request headers for a POS call on the user's behalf. With
+    FRAPPE_INTERNAL_URL the call goes to the local frontend, which picks the site
+    by Host — so the public site name is sent as Host."""
+    cfg = get_config()
+    headers = {"Authorization": f"Bearer {bearer}", "Accept": "application/json",
+               "Content-Type": "application/json"}
+    if cfg.backend_host:
+        headers["Host"] = cfg.backend_host
+    return headers
+
+
 class RemoteAuthMissing(RuntimeError):
     """The remote (http) server was asked to act without the user's token, or
     to do something only the local server may do."""
@@ -70,21 +101,24 @@ def _normalize_fields(meta: Any) -> list[dict]:
 class FrappeClient:
     def __init__(self, bearer: str | None = None) -> None:
         cfg = get_config()
-        self.base_url = cfg.base_url
-        self.timeout = cfg.timeout
-        self.mode = get_mode()
         self.remote = cfg.transport == HTTP
         if self.remote and not bearer:
             # Never fall back to a key on the remote server — it has none, and a
             # call without the user's token must not run as anybody.
             raise RemoteAuthMissing("No OAuth token on this request — reconnect the connector.")
-        self.session = _build_session()
-        self.session.headers.update({
-            "Authorization": f"Bearer {bearer}" if bearer
-                else f"token {cfg.api_key}:{cfg.api_secret}",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        })
+        self.base_url = cfg.backend_url if self.remote else cfg.base_url
+        self.timeout = cfg.timeout
+        self.mode = _remote_mode() if self.remote else get_mode()
+        # Remote clients are built per call but share one connection pool; the
+        # per-user Authorization rides on each request, never on the shared session.
+        self.session = remote_session() if self.remote else _build_session()
+        self._headers = backend_headers(bearer) if self.remote else {}
+        if not self.remote:
+            self.session.headers.update({
+                "Authorization": f"token {cfg.api_key}:{cfg.api_secret}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            })
 
     # ------------------------------------------- cpa read-only gate (layer 2/3)
     # The registration layer (modes.FilteredMCP) already removes the write
@@ -117,6 +151,7 @@ class FrappeClient:
             method, url,
             params=params,
             data=json.dumps(json_body) if json_body is not None else None,
+            headers=self._headers or None,
             timeout=timeout or self.timeout,
         )
         if resp.status_code >= 400:

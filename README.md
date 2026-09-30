@@ -182,25 +182,35 @@ connector URL in claude.ai (Settings → Connectors) or Claude Code
 and approves. No key is typed anywhere, and the server holds none.
 
 - Every request carries that user's bearer token. The server checks it against the
-  POS (`frappe.auth.get_logged_user`, cached 60 s, the token never logged or cached
-  in the clear) and forwards it on every call, so **each call runs with the signed-in
-  user's own POS roles** and is logged under their name.
+  POS (`ffl_core.api.connector.connector_identity`, cached 60 s; the token is never
+  logged or cached in the clear) and forwards it on every call, so **each call runs
+  with the signed-in user's own POS roles**.
+- **Only connector tokens are accepted**: a token the POS issued to a client created
+  by dynamic registration. Tokens of OAuth apps made in Desk are refused.
+- **Every call is audited in the POS** (Activity Log, reads included): who, through
+  which connector, which tool, which arguments (secret-looking keys masked),
+  Success / Failed. The row is written before the tool runs — if it cannot be, the
+  tool does not run. Needs a gunstore-pos release carrying `ffl_core/api/connector.py`.
 - `cpa` mode keeps all three read-only layers. The full surface is **77 tools**
   remotely: `upload_attachment` reads a path on the *server* and is never registered
   there. The two opt-in action sets stay off.
-- Env: `GUNSTORE_MCP_TRANSPORT=http`, `FRAPPE_BASE_URL` (the store's POS, also the
-  OAuth issuer), `GUNSTORE_MCP_PUBLIC_URL` (`https://…/mcp`, the URL users are given),
-  `GUNSTORE_MCP_PORT`, `GUNSTORE_MCP_MODE`. It binds 127.0.0.1 behind a reverse
-  proxy that maps the public path to `/mcp` and forwards
-  `/.well-known/oauth-protected-resource/<public path>` unchanged.
+- Env: `GUNSTORE_MCP_TRANSPORT=http`, `FRAPPE_BASE_URL` (the store's public POS URL,
+  also the OAuth issuer), `GUNSTORE_MCP_PUBLIC_URL`
+  (`https://pos.<domain>/connector/<mode>/mcp`, the URL users are given),
+  `GUNSTORE_MCP_PORT`, `GUNSTORE_MCP_MODE`; optional `GUNSTORE_MCP_HOST` (listen
+  address, default 127.0.0.1) and `FRAPPE_INTERNAL_URL` (loopback URL of the local
+  POS frontend — calls then go there directly with the site's Host header). It runs
+  on the POS host behind that host's reverse proxy, which maps the public path to
+  `/mcp` and forwards `/.well-known/oauth-protected-resource/<public path>` unchanged.
 - POS side, once per site (OAuth Settings): *Show Auth Server Metadata* and
   *Enable Dynamic Client Registration* on; *Skip Authorization* off (every user
   approves). Revoke a user's access in Desk under OAuth Bearer Token.
 
 ## Security notes
 
-- Uses the key's user (Administrator) = full access. Run **locally only**; keep
-  `.env` out of git (it is, by default).
+- Local (stdio) server: uses the key's user (Administrator) = full access. Run it
+  **locally only**; keep `.env` out of git (it is, by default). The remote connector
+  holds no key — see "Remote connector" above.
 - Credentials never transit the MCP: password-type and credential-named fields are
   stripped from every write. Set secrets in Desk directly.
 - All writes are logged by Frappe under the key's user (audit trail).

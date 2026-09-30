@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -42,9 +43,17 @@ class Config:
     write_denylist: frozenset[str]
     transport: str = STDIO
     # http transport only: the public resource URL a connector is given
-    # (https://mcp.example.com/osa/cpa/mcp) and the local port behind the proxy.
+    # (https://pos.example.com/connector/cpa/mcp), the listen address and port
+    # behind the proxy, and where POS calls actually go.
     public_url: str = ""
     port: int = 0
+    host: str = "127.0.0.1"
+    # FRAPPE_INTERNAL_URL: the connector runs on the POS host, so calls can go
+    # straight to the local frontend (http://127.0.0.1:8080) with the site's Host
+    # header instead of out and back in through the public name. The public
+    # FRAPPE_BASE_URL stays the OAuth issuer either way.
+    backend_url: str = ""
+    backend_host: str = ""
 
 
 _config: Config | None = None
@@ -86,6 +95,10 @@ def get_config() -> Config:
                 "(https://…/mcp) — plain http only for a local stack — and GUNSTORE_MCP_PORT."
             )
         port = int(raw_port)
+        internal = (os.environ.get("FRAPPE_INTERNAL_URL") or "").rstrip("/")
+        if internal and not internal.startswith(("http://127.0.0.1:", "http://localhost:")):
+            raise RuntimeError("FRAPPE_INTERNAL_URL must be a loopback URL (http://127.0.0.1:<port>).")
+        host = (os.environ.get("GUNSTORE_MCP_HOST") or "127.0.0.1").strip()
     else:
         api_key = os.environ.get("FRAPPE_API_KEY") or ""
         api_secret = os.environ.get("FRAPPE_API_SECRET") or ""
@@ -117,5 +130,8 @@ def get_config() -> Config:
         transport=transport,
         public_url=public_url or "",
         port=port or 0,
+        host=host if transport == HTTP else "127.0.0.1",
+        backend_url=(internal or base_url) if transport == HTTP else base_url,
+        backend_host=urlparse(base_url).netloc if transport == HTTP and internal else "",
     )
     return _config
