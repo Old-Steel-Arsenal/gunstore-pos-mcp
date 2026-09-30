@@ -16,7 +16,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .config import HTTP, get_config, get_transport
+from .config import HTTP, get_config
 from .modes import (
     CPA_METHOD_ALLOWLIST,
     CPA_MODE,
@@ -293,7 +293,7 @@ def get_client() -> FrappeClient:
     """The local (stdio) server shares one API-key client. The remote (http)
     server builds one per call from the signed-in user's bearer token, so every
     Frappe call runs as that user."""
-    if get_transport() == HTTP:
+    if get_config().transport == HTTP:
         from mcp.server.auth.middleware.auth_context import get_access_token
 
         tok = get_access_token()

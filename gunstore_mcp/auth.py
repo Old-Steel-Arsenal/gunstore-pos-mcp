@@ -19,6 +19,9 @@ from mcp.server.auth.provider import AccessToken
 # How long a positive answer is reused. Short on purpose: a token revoked in the
 # POS stops working here within this window.
 CACHE_SECONDS = 60
+# A rejected token is remembered briefly too, so a flood of bogus bearers costs
+# one POS round-trip each per window rather than one per request.
+REJECT_SECONDS = 30
 
 
 def _key(token: str) -> str:
@@ -33,9 +36,10 @@ class FrappeTokenVerifier:
     def __init__(self, base_url: str, timeout: int = 10) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self._cache: dict[str, tuple[float, str]] = {}
+        self._cache: dict[str, tuple[float, str | None]] = {}
 
     def _logged_user(self, token: str) -> str | None:
+        """The token's user; "" = the POS said no; None = no answer (network)."""
         try:
             resp = requests.get(
                 f"{self.base_url}/api/method/frappe.auth.get_logged_user",
@@ -45,25 +49,31 @@ class FrappeTokenVerifier:
         except requests.RequestException:
             return None
         if resp.status_code != 200:
-            return None
+            return ""
         try:
             user = (resp.json() or {}).get("message")
         except ValueError:
-            return None
-        return user if user and user != "Guest" else None
+            return ""
+        return user if user and user != "Guest" else ""
 
     async def verify_token(self, token: str) -> AccessToken | None:
         if not token:
             return None
         now = time.monotonic()
-        hit = self._cache.get(_key(token))
+        key = _key(token)
+        hit = self._cache.get(key)
         if hit and hit[0] > now:
             user = hit[1]
         else:
             user = await asyncio.to_thread(self._logged_user, token)
-            if not user:
-                self._cache.pop(_key(token), None)
+            if user is None:
+                # The POS did not answer: reject this request, remember nothing —
+                # a valid user must not be locked out for a network blip.
                 return None
-            # lazy: unbounded dict pruned only on overwrite; a few users, 60s TTL.
-            self._cache[_key(token)] = (now + CACHE_SECONDS, user)
+            # Drop expired entries on every write: refreshed tokens are new keys,
+            # so nothing else would ever remove the old ones.
+            self._cache = {k: v for k, v in self._cache.items() if v[0] > now}
+            self._cache[key] = (now + (CACHE_SECONDS if user else REJECT_SECONDS), user)
+        if not user:
+            return None
         return AccessToken(token=token, client_id=user, scopes=[])

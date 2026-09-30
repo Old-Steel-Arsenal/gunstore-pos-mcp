@@ -17,7 +17,11 @@ actions, which are NOT registered otherwise. Sizes are asserted in tests rather
 than restated here — this docstring is where the last stale count lived."""
 from __future__ import annotations
 
+import functools
+import inspect
 from urllib.parse import urlparse
+
+import anyio
 
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
@@ -28,6 +32,38 @@ from .auth import FrappeTokenVerifier
 from .config import HTTP, get_config, get_transport
 from .modes import CPA_MODE, CPA_TOOL_NAMES, FULL_MODE, FilteredMCP, get_mode
 from .tools import curated, distributor, generic, reports
+
+
+class ThreadedMCP:
+    """Remote registration wrapper: every sync tool runs in a worker thread.
+
+    The tools block on requests; FastMCP calls a sync tool on the event loop, so
+    one slow report would stall every other user of the process. anyio copies the
+    request's contextvars into the worker, so get_access_token() still sees this
+    request's token there."""
+
+    def __init__(self, mcp) -> None:
+        self._mcp = mcp
+
+    def tool(self, *args, **kwargs):
+        real = self._mcp.tool(*args, **kwargs)
+
+        def deco(fn):
+            if inspect.iscoroutinefunction(fn):
+                return real(fn)
+
+            @functools.wraps(fn)
+            async def threaded(*a, **kw):
+                return await anyio.to_thread.run_sync(functools.partial(fn, *a, **kw))
+
+            # FastMCP builds the schema from the signature and resolves string
+            # annotations against the function's globals; hand it the resolved
+            # signature so the wrapper's (server.py) globals never matter.
+            threaded.__signature__ = inspect.signature(fn, eval_str=True)
+            real(threaded)
+            return fn
+
+        return deco
 
 
 def register_tools(mcp, mode: str | None = None) -> None:
@@ -52,11 +88,19 @@ def _http_settings() -> dict:
     forwards /.well-known/oauth-protected-resource/<store>/<mode>/mcp unchanged
     (the SDK derives that metadata route from the public URL, RFC 9728)."""
     cfg = get_config()
+    if distributor.actions_enabled() or curated.gunbroker_actions_enabled():
+        # A developer .env can carry these; the remote surface never opens them.
+        raise RuntimeError("The action gates stay off on the remote connector — "
+            "unset GUNSTORE_MCP_DISTRIBUTOR_ACTIONS / GUNSTORE_MCP_GUNBROKER_ACTIONS.")
     public = urlparse(cfg.public_url)
     return {
         "host": "127.0.0.1",
         "port": cfg.port,
         "streamable_http_path": "/mcp",
+        # Stateless: every request runs the server in ITS OWN context, so tools see
+        # that request's token (a refreshed one included), nothing is kept between
+        # requests, and a session id is not a credential anybody could replay.
+        "stateless_http": True,
         "token_verifier": FrappeTokenVerifier(cfg.base_url),
         "auth": AuthSettings(issuer_url=cfg.base_url, resource_server_url=cfg.public_url),
         # Bound to loopback, the SDK would otherwise allow only localhost Host
@@ -71,12 +115,13 @@ def _http_settings() -> dict:
 
 def build() -> FastMCP:
     mode = get_mode()
-    kwargs = _http_settings() if get_transport() == HTTP else {}
+    remote = get_transport() == HTTP
+    kwargs = _http_settings() if remote else {}
     mcp = FastMCP("gunstore-pos" if mode == FULL_MODE else "gunstore-pos-cpa", **kwargs)
     # FastMCP takes no version; without this serverInfo reports the mcp SDK's
     # version, so clients can't tell which build of ours they're talking to.
     mcp._mcp_server.version = __version__
-    register_tools(mcp, mode)
+    register_tools(ThreadedMCP(mcp) if remote else mcp, mode)
     return mcp
 
 

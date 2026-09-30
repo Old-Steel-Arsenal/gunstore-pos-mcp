@@ -109,6 +109,8 @@ def _live() -> dict:
 
 # (file, regex with ONE capture group, which live count it must equal)
 CLAIMS = [
+    ("README.md", r"\*\*(\d+) tools\*\*\s*remotely", "remote_default"),
+    ("TOOLS.md", r"全量面远程是 (\d+) 个", "remote_default"),
     ("README.md", r"(\d+) tools total", "total"),
     ("README.md", r"(\d+) generic", "generic"),
     ("README.md", r"(\d+) curated", "curated"),

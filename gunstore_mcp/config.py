@@ -74,12 +74,16 @@ def get_config() -> Config:
         api_key = api_secret = ""
         public_url = (os.environ.get("GUNSTORE_MCP_PUBLIC_URL") or "").rstrip("/")
         raw_port = os.environ.get("GUNSTORE_MCP_PORT") or ""
-        local = public_url.startswith(("http://localhost:", "http://127.0.0.1:"))
-        if not (base_url and (public_url.startswith("https://") or local)
+        def secure(url: str) -> bool:
+            # The user's POS token travels to base_url on every call; plain http
+            # is allowed only for a local dev stack.
+            return url.startswith(("https://", "http://localhost:", "http://127.0.0.1:",
+                "http://dev.localhost:"))
+        if not (secure(base_url) and secure(public_url)
                 and public_url.endswith("/mcp") and raw_port.isdigit()):
             raise RuntimeError(
-                "http transport needs FRAPPE_BASE_URL, GUNSTORE_MCP_PUBLIC_URL "
-                "(https://…/mcp; plain http only for localhost) and GUNSTORE_MCP_PORT."
+                "http transport needs FRAPPE_BASE_URL (https://…), GUNSTORE_MCP_PUBLIC_URL "
+                "(https://…/mcp) — plain http only for a local stack — and GUNSTORE_MCP_PORT."
             )
         port = int(raw_port)
     else:

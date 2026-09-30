@@ -59,6 +59,28 @@ class Verifier(unittest.TestCase):
 		self.assertEqual(get.call_args.kwargs["headers"]["Authorization"], "Bearer T1")
 		self.assertNotIn("T1", repr(v._cache), "the cache must not hold the token")
 
+	def test_rejections_are_cached_briefly_but_network_errors_are_not(self):
+		v = auth.FrappeTokenVerifier("https://pos.example.com")
+		with patch.object(auth.requests, "get", return_value=_resp(401, {})) as get:
+			self.assertIsNone(self._verify(v, "BOGUS"))
+			self.assertIsNone(self._verify(v, "BOGUS"))
+		get.assert_called_once()
+		with patch.object(auth.requests, "get", side_effect=auth.requests.ConnectionError()) as get:
+			self.assertIsNone(self._verify(v, "OK-LATER"))
+		with patch.object(auth.requests, "get", return_value=_resp(200, {"message": "u@x.com"})):
+			self.assertEqual(self._verify(v, "OK-LATER").client_id, "u@x.com")
+
+	def test_expired_entries_are_pruned(self):
+		v = auth.FrappeTokenVerifier("https://pos.example.com")
+		from types import SimpleNamespace
+		clock = SimpleNamespace(now=0)
+		with patch.object(auth.requests, "get", return_value=_resp(200, {"message": "u@x.com"})), \
+				patch.object(auth, "time", SimpleNamespace(monotonic=lambda: clock.now)):
+			self._verify(v, "OLD")
+			clock.now = 1000
+			self._verify(v, "NEW")
+		self.assertEqual(len(v._cache), 1, "the refreshed-away token must not linger")
+
 	def test_guest_bad_status_and_network_errors_are_rejected(self):
 		v = auth.FrappeTokenVerifier("https://pos.example.com")
 		for side in (_resp(200, {"message": "Guest"}), _resp(401, {}), _resp(200, {}),
@@ -83,6 +105,12 @@ class Config(_Fresh, unittest.TestCase):
 			with _env({**HTTP_ENV, **bad}), patch.object(config, "_config", None):
 				with self.assertRaises(RuntimeError, msg=bad):
 					config.get_config()
+
+	def test_the_pos_url_must_be_https_too(self):
+		# The user's token is sent to FRAPPE_BASE_URL on every call.
+		with _env({**HTTP_ENV, "FRAPPE_BASE_URL": "http://pos.example.com"}):
+			with self.assertRaises(RuntimeError):
+				config.get_config()
 
 	def test_plain_http_only_for_localhost(self):
 		with _env({**HTTP_ENV, "GUNSTORE_MCP_PUBLIC_URL": "http://localhost:8781/mcp"}):
@@ -137,13 +165,58 @@ class Surface(_Fresh, unittest.TestCase):
 class HttpApp(_Fresh, unittest.TestCase):
 	"""The real Starlette app FastMCP builds in http mode."""
 
+	def _mcp(self, extra=None):
+		from gunstore_mcp import server
+		with _env({**HTTP_ENV, "GUNSTORE_MCP_MODE": "cpa", **(extra or {})}):
+			return server.build()
+
 	def _app(self):
 		from starlette.testclient import TestClient
+		return TestClient(self._mcp().streamable_http_app(), base_url="https://mcp.example.com")
+
+	def test_each_request_forwards_its_own_token(self):
+		"""Stateless: a refreshed token is used on the very next call, and a call is
+		never served with an earlier request's token."""
+		from starlette.testclient import TestClient
+		mcp = self._mcp()
+		sent = []
+
+		def fake_request(self_, method, url, **kw):
+			sent.append(self_.headers["Authorization"])
+			return _resp(200, {"data": []})
+
+		users = {"TOKEN-A": "a@x.com", "TOKEN-B": "b@x.com"}
+		with patch.object(auth.FrappeTokenVerifier, "_logged_user", lambda s, t: users.get(t, "")), \
+				patch.object(frappe_client.requests.Session, "request", fake_request), \
+				_env({**HTTP_ENV, "GUNSTORE_MCP_MODE": "cpa"}):
+			with TestClient(mcp.streamable_http_app(), base_url="https://mcp.example.com") as c:
+				for tok in ("TOKEN-A", "TOKEN-B"):
+					r = c.post("/mcp", headers={"Authorization": f"Bearer {tok}",
+						"Accept": "application/json, text/event-stream"},
+						json={"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
+							"name": "frappe_list_documents", "arguments": {"doctype": "Company"}}})
+					self.assertEqual(r.status_code, 200, r.text)
+		self.assertEqual(sent, ["Bearer TOKEN-A", "Bearer TOKEN-B"])
+
+	def test_threaded_tools_keep_their_schemas(self):
+		import asyncio as aio
 
 		from gunstore_mcp import server
-		with _env({**HTTP_ENV, "GUNSTORE_MCP_MODE": "cpa"}):
-			mcp = server.build()
-		return TestClient(mcp.streamable_http_app(), base_url="https://mcp.example.com")
+		from mcp.server.fastmcp import FastMCP
+		plain, threaded = FastMCP("p"), FastMCP("t")
+		with _env({"GUNSTORE_MCP_MODE": "cpa"}):
+			server.register_tools(plain, "cpa")
+			server.register_tools(server.ThreadedMCP(threaded), "cpa")
+		a = {t.name: t.inputSchema for t in aio.run(plain.list_tools())}
+		b = {t.name: t.inputSchema for t in aio.run(threaded.list_tools())}
+		self.assertEqual(a, b)
+
+	def test_action_gates_refuse_to_start_remotely(self):
+		for gate in ("GUNSTORE_MCP_DISTRIBUTOR_ACTIONS", "GUNSTORE_MCP_GUNBROKER_ACTIONS"):
+			with patch("gunstore_mcp.tools.distributor._load_env", lambda: None), \
+					patch("gunstore_mcp.tools.curated._load_env", lambda: None):
+				with self.assertRaises(RuntimeError, msg=gate):
+					self._mcp({gate: "1"})
 
 	def test_unauthenticated_call_points_at_the_resource_metadata(self):
 		client = self._app()
