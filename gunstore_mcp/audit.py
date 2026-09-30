@@ -74,12 +74,23 @@ def _bearer() -> str:
     return tok.token
 
 
+def _pos_reason(resp) -> str:
+    try:
+        body = resp.json() or {}
+        msgs = [json.loads(m).get("message", "") for m in json.loads(body.get("_server_messages") or "[]")]
+    except (ValueError, TypeError, AttributeError):
+        return ""
+    return re.sub(r"<[^>]+>", "", " ".join(m for m in msgs if m)).strip()
+
+
 def _post(payload: dict, bearer: str) -> Any:
     cfg = get_config()
     resp = remote_session().post(cfg.backend_url + LOG, data=json.dumps(payload),
                                  headers=backend_headers(bearer), timeout=cfg.timeout)
     if resp.status_code >= 400:
-        raise AuditUnavailable(f"POS refused the audit record ({resp.status_code}).")
+        # Pass the POS's own reason through (e.g. "The full MCP server is switched
+        # off in MCP Settings.") — the user needs it, not a bare status code.
+        raise AuditUnavailable(_pos_reason(resp) or f"POS refused the call ({resp.status_code}).")
     return ((resp.json() or {}).get("message") or {}).get("log")
 
 

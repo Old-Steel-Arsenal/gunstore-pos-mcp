@@ -51,8 +51,10 @@ class FrappeTokenVerifier:
     def __init__(self, backend_url: str, host_header: str = "", timeout: int = 10,
                  surface: str = "full") -> None:
         self.backend_url = backend_url.rstrip("/")
-        # Which connector is asking: the POS refuses a surface switched off in
-        # Claude Connector Settings (and a request that names none).
+        # Which server is asking. A surface switched off in the POS's MCP Settings
+        # still verifies the token (a refusal would look like a bad token and send
+        # clients into a sign-in loop); its calls are refused with the reason when
+        # they try to start (audit.start).
         self.surface = surface
         self.host_header = host_header
         self.timeout = timeout

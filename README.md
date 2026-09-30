@@ -185,9 +185,14 @@ and approves. No key is typed anywhere, and the server holds none.
   POS (`ffl_core.api.connector.connector_identity`, cached 60 s; the token is never
   logged or cached in the clear) and forwards it on every call, so **each call runs
   with the signed-in user's own POS roles**.
-- **Switched in the POS**: Desk → Claude Connector Settings turns the read-only
-  and full connectors on or off separately (and owns the OAuth Settings they sign
-  in through); a switched-off surface refuses every call.
+- **Works with any MCP client that supports OAuth** — Claude (claude.ai
+  Connectors, Claude Code `claude mcp add --transport http`) and ChatGPT (custom
+  connectors / developer mode, or the Responses API `mcp` tool with the user's
+  token). Each client registers itself with the POS (dynamic client
+  registration), and the audit shows which one made each call.
+- **Switched in the POS**: Desk → MCP Settings turns the read-only and full
+  servers on or off separately (and owns the OAuth settings they sign in
+  through); a switched-off server tells the user so on every call.
 - **Only connector tokens are accepted**: a token the POS issued to a client created
   by dynamic registration. Tokens of OAuth apps made in Desk are refused.
 - **Every call is audited in the POS** (Desk → Connector Audit Log, permanent, rows
