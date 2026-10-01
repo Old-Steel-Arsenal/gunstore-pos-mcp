@@ -255,7 +255,7 @@ GunBroker 上一条 listing 就是一把枪。
 - 业务只读（9）：`find_item` / `item_stock` / `firearms_in_stock` / `pending_orders` / `pending_web_orders` / `consignment_queue` / `consignment_dealers` / `consignment_serials` / `consignment_dealer_orders`
 - 报表工具包（7，见下；**full 模式同样可用**）
 
-**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**,只收 Claude 连接器(动态注册的客户端)签出的令牌,**每次调用都在 POS 的 Connector Audit Log 留永久记录**(谁、哪个连接器、哪个工具、参数(秘密打码)、成败;记不上就不执行);cpa 三层闸照旧;全量面远程是 77 个(`upload_attachment` 读服务器本地路径,远程永不注册)。细节见 README「Remote connector」。
+**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**,只收 Claude 连接器(动态注册的客户端)签出的令牌,**每次调用都在 POS 的 Connector Audit Log 留永久记录**(谁、哪个连接器、哪个工具、参数(秘密打码)、成败;记不上就不执行);cpa 三层闸照旧;全量面远程是 77 个(`upload_attachment` 读服务器本地路径,远程永不注册);分销商动作远程永不开,GunBroker 三个写动作只在 full 面开——POS 部署按该店 GunBroker Settings 的 enabled 自动设闸。细节见 README「Remote connector」。
 
 注意 cpa 模式**没有** `available_serials`（其默认剔除寄售/暂扣枪，在盘点语境会漏枪——盘点用 `firearms_in_stock`）。
 
@@ -300,5 +300,5 @@ GunBroker 上一条 listing 就是一把枪。
 
 ---
 
-*工具总数 85（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表），默认注册 78（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 20 个。对应版本 v0.7.1；工具行为以 README.md
+*工具总数 85（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表），默认注册 78（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 20 个。对应版本 v0.7.2；工具行为以 README.md
 和源码 `gunstore_mcp/tools/` 为准。*
