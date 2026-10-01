@@ -107,10 +107,15 @@ def _http_settings() -> dict:
     process's /mcp and forwards /.well-known/oauth-protected-resource/connector/
     <mode>/mcp unchanged (the metadata route follows the public URL, RFC 9728)."""
     cfg = get_config()
-    if distributor.actions_enabled() or curated.gunbroker_actions_enabled():
-        # A developer .env can carry these; the remote surface never opens them.
-        raise RuntimeError("The action gates stay off on the remote connector — "
-            "unset GUNSTORE_MCP_DISTRIBUTOR_ACTIONS / GUNSTORE_MCP_GUNBROKER_ACTIONS.")
+    if distributor.actions_enabled():
+        # A developer .env can carry this; the remote surface never opens it.
+        raise RuntimeError("The distributor action gate stays off on the remote connector — "
+            "unset GUNSTORE_MCP_DISTRIBUTOR_ACTIONS.")
+    if curated.gunbroker_actions_enabled() and get_mode() != FULL_MODE:
+        raise RuntimeError("GUNSTORE_MCP_GUNBROKER_ACTIONS opens only the full connector.")
+    # The GunBroker writes may open on the full connector: the POS deploy sets the
+    # gate from that store's own GunBroker switch, because a store that can list a
+    # gun must be able to end the listing (an end GunBroker does not confirm).
     public = urlparse(cfg.public_url)
     return {
         "host": cfg.host,

@@ -205,7 +205,10 @@ and approves. No key is typed anywhere, and the server holds none.
   the connector (and ultimately from Claude's servers), never from the user's IP.
 - `cpa` mode keeps all three read-only layers. The full surface is **77 tools**
   remotely: `upload_attachment` reads a path on the *server* and is never registered
-  there. The two opt-in action sets stay off.
+  there. The distributor actions never open remotely (the server refuses to start);
+  the 3 GunBroker writes open on the **full** connector only, where the POS deploy
+  sets `GUNSTORE_MCP_GUNBROKER_ACTIONS` from that store's own GunBroker switch — a
+  store that lists on GunBroker must be able to end a listing (80 tools then).
 - Env: `GUNSTORE_MCP_TRANSPORT=http`, `FRAPPE_BASE_URL` (the store's public POS URL,
   also the OAuth issuer), `GUNSTORE_MCP_PUBLIC_URL`
   (`https://pos.<domain>/connector/<mode>/mcp`, the URL users are given),

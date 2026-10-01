@@ -332,12 +332,28 @@ class HttpApp(_Fresh, unittest.TestCase):
 			b = {t.name: t.inputSchema for t in aio.run(threaded.list_tools())}
 			self.assertEqual(a, b, mode)
 
-	def test_action_gates_refuse_to_start_remotely(self):
-		for gate in ("GUNSTORE_MCP_DISTRIBUTOR_ACTIONS", "GUNSTORE_MCP_GUNBROKER_ACTIONS"):
-			with patch("gunstore_mcp.tools.distributor._load_env", lambda: None), \
-					patch("gunstore_mcp.tools.curated._load_env", lambda: None):
-				with self.assertRaises(RuntimeError, msg=gate):
-					self._mcp({gate: "1"})
+	def _gated(self, extra):
+		with patch("gunstore_mcp.tools.distributor._load_env", lambda: None), \
+				patch("gunstore_mcp.tools.curated._load_env", lambda: None):
+			return self._mcp(extra)
+
+	def test_distributor_actions_never_open_remotely(self):
+		for mode in ("cpa", "full"):
+			with self.assertRaises(RuntimeError, msg=mode):
+				self._gated({"GUNSTORE_MCP_MODE": mode, "GUNSTORE_MCP_DISTRIBUTOR_ACTIONS": "1"})
+
+	def test_gunbroker_actions_open_only_the_full_connector(self):
+		import asyncio as aio
+		gb = {"GUNSTORE_MCP_GUNBROKER_ACTIONS": "1"}
+		with self.assertRaises(RuntimeError):
+			self._gated({**gb, "GUNSTORE_MCP_MODE": "cpa"})
+		with _env({**HTTP_ENV, **gb, "GUNSTORE_MCP_MODE": "full"}), \
+				patch("gunstore_mcp.tools.curated._load_env", lambda: None), \
+				patch("gunstore_mcp.tools.distributor._load_env", lambda: None):
+			from gunstore_mcp import server
+			names = {t.name for t in aio.run(server.build().list_tools())}
+		self.assertTrue({"gb_push_serial", "gb_end_listing"} <= names)
+		self.assertNotIn("upload_attachment", names)
 
 
 class AuditMask(unittest.TestCase):
