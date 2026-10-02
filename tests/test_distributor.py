@@ -116,7 +116,7 @@ class DistributorTools(unittest.TestCase):
 
     def test_distributor_tool_count_pinned(self):
         # 8 read + 4 queue actions = 12. TOOLS.md / CLAUDE.md / README quote the
-        # TOTAL (85) — if this moves, move all of them too.
+        # TOTAL (114) — if this moves, move all of them too.
         self.assertEqual(len(self.tools), 12)
 
     def test_every_tool_is_namespaced(self):
@@ -254,7 +254,7 @@ class CpaModeUnchanged(unittest.TestCase):
     def test_cpa_allowlist_gains_nothing(self):
         from gunstore_mcp import modes
 
-        self.assertEqual(len(modes.CPA_TOOL_NAMES), 20)
+        self.assertEqual(len(modes.CPA_TOOL_NAMES), 25)
         self.assertFalse([n for n in modes.CPA_TOOL_NAMES if n.startswith("distributor_")])
 
 

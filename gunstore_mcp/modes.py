@@ -4,7 +4,7 @@
 surface with three independent defence layers (each fails closed on its own):
 
   1. Registration (this module's FilteredMCP + CPA_TOOL_NAMES): only the
-     18 allowlisted tools exist in tools/list — the write surface is
+     allowlisted tools exist in tools/list — the write surface is
      physically absent, not merely guarded.
   2. Client (frappe_client.py): every mutating client method refuses in cpa
      mode, and dotted methods are checked against CPA_METHOD_ALLOWLIST —
@@ -35,7 +35,7 @@ class CpaModeRefused(RuntimeError):
 
 
 # Layer 1 — the EXACT cpa tools/list (asserted by set equality in tests;
-# 4 generic + 9 curated read-only + 7 CPA reports = 20).
+# 4 generic + 9 curated read-only + 5 shop-floor reads + 7 CPA reports = 25).
 CPA_TOOL_NAMES: frozenset[str] = frozenset({
     # generic reads (frappe_run_method deliberately absent: reads and writes
     # are statically indistinguishable through it)
@@ -53,6 +53,14 @@ CPA_TOOL_NAMES: frozenset[str] = frozenset({
     "consignment_dealers",
     "consignment_serials",
     "consignment_dealer_orders",
+    # cash drawer + stocktake reads (tools/shopfloor.py) — owner decision: the
+    # accountant reads the drawer's closes / entries / weekly report and a count's
+    # variance; none of the shop-floor WRITES is here.
+    "cash_drawer_closes",
+    "cash_drawer_entries",
+    "cash_drawer_weekly",
+    "inventory_counts",
+    "inventory_count_variance",
     # CPA report pack (tools/reports.py)
     "sales_report",
     "inventory_receipts",
@@ -76,6 +84,10 @@ CPA_METHOD_ALLOWLIST: frozenset[str] = frozenset({
     "osa_consignment.api.consignment_out.available_serials_for_consignment",
     "osa_consignment.api.dealer_orders.list_dealer_orders",
     "ffl_integrations.payroc.ledger.payroc_transactions",
+    # stocktake reads (the cash-drawer reads ride REST list / query_report.run).
+    # The POS gates both on a stock role: the cpa API user needs one to call them.
+    "ffl_core.api.inventory_count.get_counts",
+    "ffl_core.api.inventory_count.variance",
 })
 
 # Layer 3 — integration Settings doctypes whose get/list reads are refused in

@@ -27,7 +27,7 @@ from unittest.mock import patch
 
 from gunstore_mcp import config
 from gunstore_mcp.modes import CPA_TOOL_NAMES
-from gunstore_mcp.tools import curated, distributor, generic, reports
+from gunstore_mcp.tools import curated, distributor, generic, reports, shopfloor
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SELF = pathlib.Path(__file__).name
@@ -78,6 +78,7 @@ def _count(module, **kw) -> int:
 def _live() -> dict:
     generic_n = _count(generic)
     reports_n = _count(reports)
+    shopfloor_n = _count(shopfloor)
     cur_on_names = _names(curated, gb_actions="1")
     cur_off_names = _names(curated, gb_actions=None)
     cur_on, cur_off = len(cur_on_names), len(cur_off_names)
@@ -94,16 +95,17 @@ def _live() -> dict:
         # them, and adding gb_pull_orders in PR-4b silently made it wrong.
         "gb_readonly": sum(1 for n in cur_off_names if n.startswith("gb_")),
         "reports": reports_n,
+        "shopfloor": shopfloor_n,
         "distributor": dist_on,
         "distributor_default": dist_off,
         "actions": dist_on - dist_off,
-        "total": generic_n + cur_on + dist_on + reports_n,
-        "default": generic_n + cur_off + dist_off + reports_n,
+        "total": generic_n + cur_on + dist_on + reports_n + shopfloor_n,
+        "default": generic_n + cur_off + dist_off + reports_n + shopfloor_n,
         "cpa_surface": len(CPA_TOOL_NAMES),
         # the remote connector's full surface: the default minus the tools that
         # read a path on the server (upload_attachment), never registered remotely.
         "remote_default": generic_n + len(_names(curated, transport="http"))
-            + dist_off + reports_n,
+            + dist_off + reports_n + shopfloor_n,
     }
 
 
@@ -119,12 +121,14 @@ CLAIMS = [
     # rather than the first: loose patterns start colliding with sentences.
     ("README.md", r"(\d+) distributor \+", "distributor"),
     ("README.md", r"(\d+) CPA reports", "reports"),
+    ("README.md", r"(\d+) shop-floor", "shopfloor"),
     ("README.md", r"(\d+) register by default", "default"),
     ("CLAUDE.md", r"\((\d+) 工具", "total"),
     ("CLAUDE.md", r"(\d+) 个通用 Frappe CRUD", "generic"),
     ("CLAUDE.md", r"(\d+) 个业务工具", "curated"),
     ("CLAUDE.md", r"(\d+) 个分销商工具", "distributor"),
     ("CLAUDE.md", r"(\d+) 个 CPA 报表工具", "reports"),
+    ("CLAUDE.md", r"(\d+) 个门店运营工具", "shopfloor"),
     ("CLAUDE.md", r"默认注册 (\d+) 个", "default"),
     ("CLAUDE.md", r"恰 (\d+) 工具", "cpa_surface"),
     ("TOOLS.md", r"工具总数 (\d+)", "total"),
@@ -133,6 +137,7 @@ CLAIMS = [
     # anchored on the trailing " +" so it cannot latch onto "4 个分销商队列动作"
     ("TOOLS.md", r"(\d+) 个分销商 \+", "distributor"),
     ("TOOLS.md", r"(\d+) 个报表", "reports"),
+    ("TOOLS.md", r"(\d+) 个门店运营", "shopfloor"),
     ("TOOLS.md", r"全部 (\d+) 工具", "total"),
     ("TOOLS.md", r"默认注册 (\d+)", "default"),
     ("TOOLS.md", r"恰注册其中 (\d+) 个", "cpa_surface"),
@@ -196,7 +201,8 @@ class ExactClaims(unittest.TestCase):
     def test_the_buckets_add_up_to_the_total(self):
         L = self.live
         self.assertEqual(
-            L["total"], L["generic"] + L["curated"] + L["distributor"] + L["reports"])
+            L["total"], L["generic"] + L["curated"] + L["distributor"] + L["reports"]
+            + L["shopfloor"])
         # Two independent registration gates now, so the default surface is the
         # total less BOTH opt-in sets.
         self.assertEqual(L["default"], L["total"] - L["actions"] - L["gb_actions"])

@@ -1,6 +1,6 @@
 """CPA mode tests: the three defence layers.
 
-Layer 1 — registration: GUNSTORE_MCP_MODE=cpa registers EXACTLY the 20-name
+Layer 1 — registration: GUNSTORE_MCP_MODE=cpa registers EXACTLY the 25-name
 allowlist (set equality, per spec acceptance #1 — not merely "no write tools").
 Layer 2 — client: mutating client methods + non-allowlisted dotted methods
 raise CpaModeRefused before any HTTP.
@@ -72,6 +72,9 @@ EXPECTED_CPA_TOOLS = {
 	"pending_orders", "pending_web_orders",
 	"consignment_queue", "consignment_dealers", "consignment_serials",
 	"consignment_dealer_orders",
+	# cash drawer + stocktake reads (5) — shop-floor WRITES never appear here
+	"cash_drawer_closes", "cash_drawer_entries", "cash_drawer_weekly",
+	"inventory_counts", "inventory_count_variance",
 	# CPA reports (7)
 	"sales_report", "inventory_receipts", "gl_entries", "financial_statement",
 	"tax_liability", "ar_ap_summary", "payroc_transactions",
@@ -88,6 +91,8 @@ EXPECTED_METHOD_ALLOWLIST = {
 	"osa_consignment.api.consignment_out.available_serials_for_consignment",
 	"osa_consignment.api.dealer_orders.list_dealer_orders",
 	"ffl_integrations.payroc.ledger.payroc_transactions",
+	"ffl_core.api.inventory_count.get_counts",
+	"ffl_core.api.inventory_count.variance",
 }
 
 SETTINGS_DOCTYPES = {
@@ -115,21 +120,21 @@ class FakeMCP:
 
 
 class RegistrationLayer(unittest.TestCase):
-	def test_cpa_mode_registers_exactly_the_20_allowlisted_tools(self):
+	def test_cpa_mode_registers_exactly_the_25_allowlisted_tools(self):
 		mcp = FakeMCP()
 		server.register_tools(mcp, mode="cpa")
 		self.assertEqual(set(mcp.tools), EXPECTED_CPA_TOOLS)
-		self.assertEqual(len(mcp.tools), 20)
+		self.assertEqual(len(mcp.tools), 25)
 
 	def test_default_full_mode_holds_both_opt_in_sets_back(self):
-		"""Default full mode is 78, not 85: the 4 distributor queue actions and the
+		"""Default full mode is 107, not 114: the 4 distributor queue actions and the
 		3 GunBroker write actions each require an explicit opt-in. Pinned separately
 		from the full surface so that turning either gate into a no-op would break a
 		test rather than quietly restore the wider surface."""
 		mcp = FakeMCP()
 		with _actions(None):
 			server.register_tools(mcp, mode="full")
-		self.assertEqual(len(mcp.tools), 78)
+		self.assertEqual(len(mcp.tools), 107)
 		for name in ("distributor_confirm_order", "distributor_cancel_order",
 				"distributor_reroute", "distributor_update_order_ffl",
 				"gb_push_serial", "gb_end_listing", "gb_pull_orders"):
@@ -160,7 +165,7 @@ class RegistrationLayer(unittest.TestCase):
 		with _actions("1", gb="1"):
 			server.register_tools(mcp, mode="cpa")
 		self.assertEqual(set(mcp.tools), EXPECTED_CPA_TOOLS)
-		self.assertEqual(len(mcp.tools), 20)
+		self.assertEqual(len(mcp.tools), 25)
 		for name in ("gb_push_serial", "gb_end_listing", "gb_pull_orders",
 				"gb_test_connection", "gb_listing_status"):
 			self.assertNotIn(name, mcp.tools)
@@ -169,7 +174,7 @@ class RegistrationLayer(unittest.TestCase):
 		mcp = FakeMCP()
 		with _actions("1", gb="1"):
 			server.register_tools(mcp, mode="full")
-		self.assertEqual(len(mcp.tools), 85)
+		self.assertEqual(len(mcp.tools), 114)
 		self.assertTrue(EXPECTED_CPA_TOOLS <= set(mcp.tools))
 		# regression: none of the write faces leaked out of full mode
 		for name in ("frappe_run_method", "dispose_order", "receive_goods",
@@ -194,10 +199,19 @@ class RegistrationLayer(unittest.TestCase):
 			"gb_pull_orders",
 			"dispose_order", "receive_goods", "cancel_order",
 			"ship_consignment_out", "create_consignment_out",
+			# shop-floor: only the five reads are on the accountant surface
+			"cash_drawer_today", "cash_drawer_preview_close", "cash_drawer_close_day",
+			"cash_drawer_record_entry", "cash_drawer_undo", "cash_drawer_record_payout",
+			"inventory_count_state", "inventory_count_create", "inventory_count_scan",
+			"inventory_count_set_qty", "inventory_count_toggle_serial",
+			"inventory_count_undo", "inventory_count_cancel", "inventory_count_finalize",
+			"storage_map", "storage_location", "storage_where", "storage_unassigned",
+			"storage_create_zone", "storage_add_positions", "storage_set_disabled",
+			"storage_scan_move", "storage_undo_move", "storage_confirm_taken",
 		):
 			self.assertNotIn(name, mcp.tools)
 
-	def test_method_allowlist_is_exactly_the_ten_names(self):
+	def test_method_allowlist_is_exactly_the_twelve_names(self):
 		self.assertEqual(set(CPA_METHOD_ALLOWLIST), EXPECTED_METHOD_ALLOWLIST)
 
 	def test_settings_blocklist_is_exactly_the_ten_doctypes(self):
