@@ -57,6 +57,36 @@ _ALWAYS_CONFIRM_METHODS = {
     "ffl_core.api.manual_order.set_customer_tax_exempt",
     # Places every Draft distributor leg of a counter order — a real purchase.
     "ffl_core.api.manual_order.release_order_legs",
+    # Shop-floor features (POS 1.5.0-beta.15). Every write of the stocktake, the cash
+    # drawer and the storage map; the dedicated tools in tools/shopfloor.py all take
+    # confirm, and tests/test_shopfloor.py checks each one is gated here or by the verb
+    # regex. Money/stock ones: finalize posts a Stock Reconciliation, close_day /
+    # record_* / undo_* book or cancel journal entries. Storage writes only move the
+    # tracking layer, but the owner asked for the same confirm everywhere.
+    "ffl_core.api.inventory_count.create_count",
+    "ffl_core.api.inventory_count.scan",
+    "ffl_core.api.inventory_count.set_qty",
+    "ffl_core.api.inventory_count.toggle_serial",
+    "ffl_core.api.inventory_count.undo",
+    "ffl_core.api.inventory_count.finalize",
+    "ffl_core.api.cash_drawer.close_day",
+    "ffl_core.api.cash_drawer.record_deposit",
+    "ffl_core.api.cash_drawer.record_expense",
+    "ffl_core.api.cash_drawer.record_owner_draw",
+    "ffl_core.api.cash_drawer.undo_entry",
+    "ffl_core.api.cash_drawer.undo_close",
+    "ffl_core.api.cash_drawer.record_payout",
+    "ffl_core.api.storage.create_zone",
+    "ffl_core.api.storage.add_positions",
+    "ffl_core.api.storage.set_disabled",
+    "ffl_core.api.storage.scan_move",
+    "ffl_core.api.storage.undo_move",
+    "ffl_core.api.storage.confirm_taken",
+    # Both now book cash on request: a trade-in intake pays the seller out
+    # (payout_method -> CASH-PAYOUT) and a cost correction can book the difference
+    # (payout_was_different). Neither is wrapped by a dedicated tool.
+    "ffl_core.api.trade_in.create_trade_in_intake",
+    "ffl_core.api.cost_correction.correct_serial_cost",
 }
 
 # Frappe globally whitelists these generic mutators at /api/method — reaching

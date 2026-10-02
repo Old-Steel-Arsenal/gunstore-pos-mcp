@@ -29,7 +29,7 @@ from gunstore_mcp import config as config_mod
 from gunstore_mcp import safety, server
 from gunstore_mcp.frappe_client import get_client
 from gunstore_mcp.safety import MCP_NEVER_WRITES, WriteRefused
-from gunstore_mcp.tools import curated, distributor, generic, reports
+from gunstore_mcp.tools import curated, distributor, generic, reports, shopfloor
 
 DT = "GunBroker Settings"
 FORBIDDEN = sorted(MCP_NEVER_WRITES[DT])
@@ -108,7 +108,7 @@ def _creds():
 # registered surface" is only as good as this list, and it was wrong once already
 # (generic + curated only, while the server registers four — an unguarded writer
 # dropped into distributor.py went unnoticed by the static check below).
-_SURFACE_MODULES = (generic, curated, distributor, reports)
+_SURFACE_MODULES = (generic, curated, distributor, reports, shopfloor)
 
 
 def _surface():
@@ -348,13 +348,14 @@ class TheSurfaceIsTheWholeSurface(unittest.TestCase):
             "_SURFACE_MODULES no longer matches server.register_tools — the "
             "never-writes check would silently stop covering part of the server")
 
-    def test_the_widest_surface_really_contains_all_four_buckets(self):
+    def test_the_widest_surface_really_contains_every_bucket(self):
         """Reading the module list off server.py proves nothing if registering them
         yields nothing; name one tool that can only come from each bucket, and both
         opt-in sets, so an unset gate cannot shrink this surface unnoticed."""
         tools = _surface()
         for name in ("frappe_run_method", "update_settings", "distributor_route_queue",
-                     "sales_report", "gb_push_serial", "distributor_confirm_order"):
+                     "sales_report", "inventory_count_finalize", "gb_push_serial",
+                     "distributor_confirm_order"):
             self.assertIn(name, tools)
 
     def test_an_unguarded_writer_is_named_no_matter_which_module_defines_it(self):

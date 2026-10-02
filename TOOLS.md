@@ -115,6 +115,59 @@ GunBroker 上一条 listing 就是一把枪。
 | RSR 目录商品转成本店在售 Item | `promote_to_item` | ✅ | 厂商/型号/口径/图自动带入 |
 | 用 RSR 数据补全已有 Item 的空字段 | `backfill_from_rsr` | ✅ | 只填空，不覆盖已有值 |
 
+## 3b. 盘点 / 现金抽屉 / 库位（POS 1.5.0-beta.15，`tools/shopfloor.py`）
+
+**所有写都要 `confirm=true`**（owner 拍板：全部开放，含钱和库存），但**没有**注册期开关——和 §2b 的 GunBroker 闸有意不同：这些是 POS 页面上同角色员工的日常动作，POS 逐次校验角色，远程连接器逐次写 Audit Log，且大多可撤。**真正撤不回的两处**：`cash_drawer_close_day`（关掉的 POS 班次不会因撤销而重开）和 `inventory_count_finalize`（已过账的 Stock Reconciliation 只能去 Desk 取消）。
+
+### 盘点（Inventory Count）
+盘点**只报告枪、从不调整枪**：无 disposition、不调 FastBound；丢枪要人去查（可能要报 ATF）。只有非序列号商品会被 finalize 调整。
+
+| 你想… | 工具 | confirm | 说明 |
+|---|---|---|---|
+| 看有哪些盘点 | `inventory_counts` | — | 最近 50 个，含状态/范围/扫描数；cpa 可用 |
+| 看一个盘点的进度 | `inventory_count_state` | — | 已扫的枪/数量/未知条码 + 应有清单；`counts_only=true` 只要扫描 |
+| 看差异 | `inventory_count_variance` | — | `serial.{missing,unexpected,unknown}` 枪只报告；`items[]` 是 finalize 会调的；`open_register_sales` 非空的行要等收银班次关了才能调；cpa 可用 |
+| 开始盘点 | `inventory_count_create` | ✅ | 不传范围=全店；仓库必须是本公司自有库存仓 |
+| 扫一下 | `inventory_count_scan` | ✅ | 序列号（枪，一把一次）或 UPC（+1，需 warehouse）；`result=error` 表示什么都没存（是回复不是异常）；回包 `entry` 给 undo 用 |
+| 手输数量 | `inventory_count_set_qty` | ✅ | 无条码商品；按差值存，不覆盖别的设备的扫描；首次输 0 也算盘过 |
+| 手勾/取消一把枪 | `inventory_count_toggle_serial` | ✅ | 标签扫不出时；取消别人的扫描要 Stock Manager |
+| 撤一条扫描 | `inventory_count_undo` | ✅ | 只有本人或 Stock Manager |
+| 作废一个盘点 | `inventory_count_cancel` | ✅ | 不调整任何东西，扫描留档；Stock Manager |
+| **完成盘点** | `inventory_count_finalize` | ✅ | ⚠ 过账**一张** Stock Reconciliation 把非序列号商品调成实数。`item_rows=[{item_code,warehouse}]` 选行；不传=所有有差异的行**除了**没人扫过的（那些只有在列出时才会被写成 0）。先读 variance、和用户确认再调。无扫描/期间已冻结/有未关收银班次都会被拒（不留痕）|
+
+### 现金抽屉（Cash Drawer）
+规则见 POS 仓 `docs/cash-drawer.md`。抽屉应有的现金 = Cash 科目余额 + 未合并 POS 发票的现金。
+
+| 你想… | 工具 | confirm | 说明 |
+|---|---|---|---|
+| 看今天的抽屉 | `cash_drawer_today` | — | expected、今日/上次关账以来的流水（含 `can_undo`）、阈值、费用上限、可选费用科目/取款人 |
+| 预览关账 | `cash_drawer_preview_close` | — | 只算不记：expected / variance / needs_reason / first_count |
+| 看每日关账记录 | `cash_drawer_closes` | — | 默认不含已撤销的；cpa 可用 |
+| 看抽屉流水（存款/老板取款/费用/卖家付款） | `cash_drawer_entries` | — | 默认只看 Posted；cpa 可用 |
+| 给会计的周报 | `cash_drawer_weekly(from_date,to_date)` | — | Cash Drawer Weekly 原样透传，末尾有对账校验块（差额必须 0.00、未分类行应为空）；≤400 天；cpa 可用 |
+| **关账** | `cash_drawer_close_day` | ✅ | ⚠ 清点抽屉、关 POS 班次、记差额分录；**公司首次盘点**改为把账调到实际现金（CASH-CUTOFF）。差额≥设置阈值（默认 $20）必须写 reason。先 preview，把 `expected` 作为 `expected_seen` 传入（账动了会被拒） |
+| 存款/老板取款/费用 | `cash_drawer_record_entry(kind=deposit\|owner_draw\|expense)` | ✅ | 老板取款仅 manager、须 `withdrawer`；费用须 `expense_account`+`memo`+`receipt`，有上限（默认 $200），只能走允许科目；**不属于该 kind 的参数会被拒绝而不是悄悄丢掉** |
+| 撤销 | `cash_drawer_undo(entry\|close)` | ✅ | 恰给一个：撤某条流水（之后有清点则拒；撤卖家付款要 System Manager）/ 撤**最新**一次清点（班次不重开）。manager |
+| 记录卖家怎么被付款 | `cash_drawer_record_payout(acquisition, method)` | ✅ | 私人卖家的收枪（trade-in 等），Cash/Zelle/Check/ACH，按收购成本记一次；**已有付款则替换**（System Manager 改方法）。manager |
+
+**费用收据规则**（服务端 `_receipt_file`）：`receipt` 必须是**同一个 POS 用户 1 天内上传**、仍私有、**未挂在任何文档上**、且没被别的费用用过的文件 URL。**远程连接器没有 `upload_attachment`**，所以用户要在 POS 里自己传图（私有 File，不挂文档），再把 file_url 交给 `cash_drawer_record_entry`；本机 stdio 版可用 `upload_attachment(file_path, is_private=true)`（不要传 doctype/name）。因为服务端本来就接受这种收据，远程面**照常注册** expense，不需要摘掉。收据不合规时由 POS 拒绝，什么都不会入账。
+
+### 库位（Storage Locations）
+**只动追踪层**：不建任何库存/会计单据，不改库存和账。Slots 区=编号槽位（A1,A2…，每槽一把枪）；Open 区=**一个**同名位置（货架/展柜/保险柜，不限量，枪和别的都能放）。
+
+| 你想… | 工具 | confirm | 说明 |
+|---|---|---|---|
+| 看全店库位图 | `storage_map` | — | 每区每位的内容 + `unassigned`；`zones_only=true` 只列区（便宜） |
+| 看某个位置里有什么 | `storage_location` | — | 位置名即条码 |
+| 某把枪/某商品在哪 | `storage_where` | — | `serial_no` → 它的 `storage_location`；`item_codes` → 各位置数量 + 未入位数量 + `sole` |
+| 还没入位的 / 待确认的 | `storage_unassigned` | — | `to_confirm` = 卖出/发货时没说从哪个位置拿的商品 |
+| 建区 | `storage_create_zone` | ✅ | `kind`=Slots（`count` 个槽）或 Open（一个位置，`count` 忽略）。Stock Manager |
+| 给 Slots 区加槽 | `storage_add_positions` | ✅ | 不重排不删除；Open 区拒绝 |
+| 停用/启用 区或位置 | `storage_set_disabled` | ✅ | 恰给 `zone` 或 `location` 之一；停用要求为空 |
+| 把枪/商品放进位置 | `storage_scan_move` | ✅ | **这一个工具就是「指派序列号」和「放入数量」**（`code`=序列号 / UPC；`qty`）。来源不唯一时什么都不动、`result=choose` 列 `options`，带 `from_location` 重调。`error` 是回复不是异常 |
+| 撤销一次移动 | `storage_undo_move` | ✅ | 仅手动移动、仅一次、且东西还在原处；`ok=false` 是回复 |
+| 确认待确认商品从哪拿的 | `storage_confirm_taken` | ✅ | 这是**唯一**的「从位置里拿走数量」动作；不超过待确认量 |
+
 ## 4. 订单 → 收款 → 发货（Pending Order 队列的全部动作）
 
 | 你想… | 工具 | confirm | 说明 |
@@ -187,7 +240,7 @@ GunBroker 上一条 listing 就是一把枪。
 - `frappe_list_documents` / `frappe_get_document` / `frappe_describe_doctype` — 查任何 doctype（先 describe 看字段名）
 - `frappe_create_document` / `frappe_update_document` — 建/改任何记录（凭据字段自动剥除）
 - `frappe_delete_document` / `frappe_submit_document` / `frappe_cancel_document` — 删/提交/作废（都要 confirm）
-- `frappe_run_method` — 按点路径调任何白名单方法；方法名含 delete/cancel/refund/**dispose/push/charge/consolidate/ship/return/receive/sold/settle/onboard** 等危险动词时要 confirm。另有一批**无危险动词但高后果**的方法走显式精确名单(`_ALWAYS_CONFIRM_METHODS`:update_order / update_consignment_line_prices / create_consignment_out / record_payment / create_consignment_invoice_now / add_stock / set_stock / set_customer_tax_exempt),裸调同样要 confirm——收录判据:记钱、动库存、改合规/税务状态
+- `frappe_run_method` — 按点路径调任何白名单方法；方法名含 delete/cancel/refund/**dispose/push/charge/consolidate/ship/return/receive/sold/settle/onboard** 等危险动词时要 confirm。另有一批**无危险动词但高后果**的方法走显式精确名单(`_ALWAYS_CONFIRM_METHODS`:update_order / update_consignment_line_prices / create_consignment_out / record_payment / create_consignment_invoice_now / add_stock / set_stock / set_customer_tax_exempt / 盘点·现金抽屉·库位的全部写方法 / trade_in.create_trade_in_intake / cost_correction.correct_serial_cost),裸调同样要 confirm——收录判据:记钱、动库存、改合规/税务状态
 - `frappe_run_report` — 跑任何报表
 
 **尚无专用工具、常用点路径备忘**（都走 `frappe_run_method`）：
@@ -198,7 +251,8 @@ GunBroker 上一条 listing 就是一把枪。
 | 核验**客户**的 FFL | `ffl_integrations.atf.ez_check_api.verify_customer_ffl` |
 | 单枪与 FastBound 的字段差异对账 | `ffl_integrations.fastbound.reconcile.compute_serial_fb_diff`（只读）等 reconcile 套件 |
 | 特殊订货 / 定金 | `ffl_core.api.special_order.*` |
-| 个人 trade-in 收枪 | `ffl_core.api.trade_in.create_trade_in_intake` |
+| 个人 trade-in 收枪（payload 的 `payout_method` = Cash/Zelle/Check/ACH，不抵扣信用时必填，成功后记 CASH-PAYOUT 现金分录；`apply_credit` 则走信用不付现；**要 confirm**） | `ffl_core.api.trade_in.create_trade_in_intake` |
+| 修已入册枪的成本（`payout_was_different=1` 才会按差额记付款分录；**要 confirm**） | `ffl_core.api.cost_correction.correct_serial_cost`（先 `list_item_serials_for_cost` 查） |
 | 安全删除 Item（保留枪支审计链） | `ffl_core.api.item_admin.preview_delete` → `force_delete`（要 confirm） |
 | **编辑**一张 pending 柜台单（取消重建式，仅限未 dispose/未推单） | `ffl_core.api.manual_order.update_order`（要 confirm——已列入显式高后果名单 `_ALWAYS_CONFIRM_METHODS`，"update" 虽不在危险动词表，裸调也会被要求确认）内部是 cancel+rebuild 级联——慎用，动手前先复述要改什么 |
 | 查/设客户免税状态 | `ffl_core.api.manual_order.get_customer_tax_status` / `set_customer_tax_exempt` |
@@ -244,18 +298,19 @@ GunBroker 上一条 listing 就是一把枪。
 
 ## 10. CPA 模式（只读会计面）+ 报表工具包
 
-**模式开关**：启动环境变量 `GUNSTORE_MCP_MODE=cpa`（默认 `full` = 全部 85 工具中默认注册 78（4 个分销商队列动作 + 3 个 GunBroker 写动作需显式开启），行为与以前完全一致；未知值直接拒绝启动，不会静默降级成可写）。cpa 模式给会计/CPA 用：**写面在工具列表里物理不存在**，不是"存在但会拒绝"。三层防御，缺一层其余仍兜底：
+**模式开关**：启动环境变量 `GUNSTORE_MCP_MODE=cpa`（默认 `full` = 全部 114 工具中默认注册 107（4 个分销商队列动作 + 3 个 GunBroker 写动作需显式开启），行为与以前完全一致；未知值直接拒绝启动，不会静默降级成可写）。cpa 模式给会计/CPA 用：**写面在工具列表里物理不存在**，不是"存在但会拒绝"。三层防御，缺一层其余仍兜底：
 
-1. **注册层**：tools/list 恰好 = 下面 20 个名字（集合相等，测试钉死）；
+1. **注册层**：tools/list 恰好 = 下面 25 个名字（集合相等，测试钉死）；
 2. **客户端层**：一切写方法 + 未逐一列名的点路径方法（`frappe_run_method` 整个不注册）→ `CpaModeRefused`；只读点路径 allowlist 逐一列名，禁通配；
 3. **Settings 层**：7 个集成 Settings doctype 的 get/list 读也被挡（配置面对会计无用，密码遮蔽是框架行为不是本仓保证）。
 
-**cpa 模式的 20 个工具**：
+**cpa 模式的 25 个工具**：
 - 通用查（4）：`frappe_list_documents` / `frappe_get_document` / `frappe_describe_doctype` / `frappe_run_report`
 - 业务只读（9）：`find_item` / `item_stock` / `firearms_in_stock` / `pending_orders` / `pending_web_orders` / `consignment_queue` / `consignment_dealers` / `consignment_serials` / `consignment_dealer_orders`
+- 盘点 / 现金抽屉只读（5，见 §3b；**full 模式同样可用**）：`cash_drawer_closes` / `cash_drawer_entries` / `cash_drawer_weekly` / `inventory_counts` / `inventory_count_variance`。cpa 没有任何一个写。盘点两个读要求该 API 用户有 Stock 角色（POS 端 `COUNT_ROLES`），抽屉三个读 Accounts User 即可
 - 报表工具包（7，见下；**full 模式同样可用**）
 
-**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**,只收 Claude 连接器(动态注册的客户端)签出的令牌,**每次调用都在 POS 的 Connector Audit Log 留永久记录**(谁、哪个连接器、哪个工具、参数(秘密打码)、成败;记不上就不执行);cpa 三层闸照旧;全量面远程是 77 个(`upload_attachment` 读服务器本地路径,远程永不注册);分销商动作远程永不开,GunBroker 三个写动作只在 full 面开——POS 部署按该店 GunBroker Settings 的 enabled 自动设闸。细节见 README「Remote connector」。
+**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**,只收 Claude 连接器(动态注册的客户端)签出的令牌,**每次调用都在 POS 的 Connector Audit Log 留永久记录**(谁、哪个连接器、哪个工具、参数(秘密打码)、成败;记不上就不执行);cpa 三层闸照旧;全量面远程是 106 个(`upload_attachment` 读服务器本地路径,远程永不注册);分销商动作远程永不开,GunBroker 三个写动作只在 full 面开——POS 部署按该店 GunBroker Settings 的 enabled 自动设闸。细节见 README「Remote connector」。
 
 注意 cpa 模式**没有** `available_serials`（其默认剔除寄售/暂扣枪，在盘点语境会漏枪——盘点用 `firearms_in_stock`）。
 
@@ -300,5 +355,5 @@ GunBroker 上一条 listing 就是一把枪。
 
 ---
 
-*工具总数 85（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表），默认注册 78（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 20 个。对应版本 v0.7.2；工具行为以 README.md
+*工具总数 114（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表 + 29 个门店运营），默认注册 107（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 25 个。对应版本 v0.8.0；工具行为以 README.md
 和源码 `gunstore_mcp/tools/` 为准。*

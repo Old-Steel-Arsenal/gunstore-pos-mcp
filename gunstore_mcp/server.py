@@ -9,7 +9,7 @@ key: every request carries the signed-in user's bearer token, verified against
 the POS (auth.FrappeTokenVerifier) and forwarded on every call.
 
 Modes (GUNSTORE_MCP_MODE): "full" (default) = the whole surface; "cpa" = the
-read-only accountant surface (exactly the 20 tools in modes.CPA_TOOL_NAMES; the
+read-only accountant surface (exactly the tools in modes.CPA_TOOL_NAMES; the
 write tools are never registered).
 
 GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1 additionally opts into the 4 distributor queue
@@ -34,7 +34,7 @@ from . import __version__, audit
 from .auth import FrappeTokenVerifier
 from .config import HTTP, get_config, get_transport
 from .modes import CPA_MODE, CPA_TOOL_NAMES, FULL_MODE, FilteredMCP, get_mode
-from .tools import curated, distributor, generic, reports
+from .tools import curated, distributor, generic, reports, shopfloor
 
 
 def _audited(fn, name: str, surface: str, args: tuple, kwargs: dict):
@@ -89,7 +89,7 @@ def register_tools(mcp, mode: str | None = None) -> None:
     """Register the tool surface for `mode` (default: env GUNSTORE_MCP_MODE).
 
     cpa mode routes every registration through FilteredMCP so only the
-    18 allowlisted tools ever reach tools/list."""
+    allowlisted tools ever reach tools/list."""
     mode = mode or get_mode()
     if mode not in (FULL_MODE, CPA_MODE):
         raise RuntimeError(f"Unknown server mode {mode!r}.")
@@ -98,6 +98,7 @@ def register_tools(mcp, mode: str | None = None) -> None:
     curated.register(target)
     distributor.register(target)
     reports.register(target)
+    shopfloor.register(target)
 
 
 def _http_settings() -> dict:
