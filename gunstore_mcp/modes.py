@@ -35,7 +35,7 @@ class CpaModeRefused(RuntimeError):
 
 
 # Layer 1 — the EXACT cpa tools/list (asserted by set equality in tests;
-# 4 generic + 9 curated read-only + 5 shop-floor reads + 7 CPA reports = 25).
+# 4 generic + 9 curated read-only + 6 shop-floor reads + 7 CPA reports = 26).
 CPA_TOOL_NAMES: frozenset[str] = frozenset({
     # generic reads (frappe_run_method deliberately absent: reads and writes
     # are statically indistinguishable through it)
@@ -85,9 +85,10 @@ CPA_METHOD_ALLOWLIST: frozenset[str] = frozenset({
     "osa_consignment.api.consignment_out.available_serials_for_consignment",
     "osa_consignment.api.dealer_orders.list_dealer_orders",
     "ffl_integrations.payroc.ledger.payroc_transactions",
-    # stocktake reads (the cash-drawer reads ride REST list / query_report.run).
-    # The POS gates both on a stock role: the cpa API user needs one to call them.
+    # The cash-drawer log (the other drawer reads ride REST list / query_report.run):
+    # the POS lets the counter roles and Accounts User / Manager read it.
     "ffl_core.api.cash_drawer.get_log",
+    # Stocktake reads: the POS gates both on a stock role, so the cpa API user needs one.
     "ffl_core.api.inventory_count.get_counts",
     "ffl_core.api.inventory_count.variance",
 })

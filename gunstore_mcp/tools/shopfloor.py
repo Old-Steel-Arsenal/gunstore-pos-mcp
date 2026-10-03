@@ -8,9 +8,10 @@ would only show against a live POS.
 
 Split by consequence:
 
-* **reads** — registered everywhere. Five of them (`inventory_counts`,
+* **reads** — registered everywhere. Six of them (`inventory_counts`,
   `inventory_count_variance`, `cash_drawer_closes`, `cash_drawer_entries`,
-  `cash_drawer_weekly`) are also on the read-only cpa surface; see modes.py.
+  `cash_drawer_log`, `cash_drawer_weekly`) are also on the read-only cpa surface;
+  see modes.py.
 * **writes** — every one needs ``confirm=true`` (owner decision: all of it is exposed,
   including the money and stock actions). They are NOT behind a registration-time env
   gate like the GunBroker / distributor actions, on purpose: each is the ordinary
@@ -285,8 +286,10 @@ def register(mcp: Any) -> None:
         opening balance (books before from_date), closing, and cash in / out totals (count
         differences are in neither). Dates YYYY-MM-DD; default the last 7 days; at most a
         year. Read-only; also on the cpa surface."""
-        return get_client().call_method(_CD + "get_log", {
-            "company": company, "from_date": from_date, "to_date": to_date})
+        client = get_client()
+        return client.call_method(_CD + "get_log", {
+            "company": company or _default_company(client), "from_date": from_date,
+            "to_date": to_date})
 
     @mcp.tool()
     def cash_drawer_preview_close(counted: float, company: str | None = None) -> Any:

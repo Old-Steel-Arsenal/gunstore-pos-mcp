@@ -140,7 +140,7 @@ GunBroker 上一条 listing 就是一把枪。
 
 | 你想… | 工具 | confirm | 说明 |
 |---|---|---|---|
-| 看今天的抽屉 | `cash_drawer_today` | — | expected、今日/上次关账以来的流水（含 `can_undo`）、阈值、费用上限、可选费用科目/取款人 |
+| 看今天的抽屉 | `cash_drawer_today` | — | expected、今日/上次关账以来的流水（含 `can_undo`）、阈值、费用上限、可选费用科目 |
 | 预览关账 | `cash_drawer_preview_close` | — | 只算不记：expected / variance / needs_reason / first_count |
 | 看每日关账记录 | `cash_drawer_closes` | — | 默认不含已撤销的；cpa 可用 |
 | 看抽屉流水（存款/从银行取现/费用/卖家付款） | `cash_drawer_entries` | — | 默认只看 Posted；cpa 可用 |

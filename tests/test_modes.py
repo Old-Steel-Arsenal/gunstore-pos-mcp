@@ -72,7 +72,7 @@ EXPECTED_CPA_TOOLS = {
 	"pending_orders", "pending_web_orders",
 	"consignment_queue", "consignment_dealers", "consignment_serials",
 	"consignment_dealer_orders",
-	# cash drawer + stocktake reads (5) — shop-floor WRITES never appear here
+	# cash drawer + stocktake reads (6) — shop-floor WRITES never appear here
 	"cash_drawer_closes", "cash_drawer_entries", "cash_drawer_log", "cash_drawer_weekly",
 	"inventory_counts", "inventory_count_variance",
 	# CPA reports (7)

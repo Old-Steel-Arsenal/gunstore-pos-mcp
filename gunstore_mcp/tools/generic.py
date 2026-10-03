@@ -73,6 +73,7 @@ _ALWAYS_CONFIRM_METHODS = {
     "ffl_core.api.cash_drawer.record_deposit",
     "ffl_core.api.cash_drawer.record_expense",
     "ffl_core.api.cash_drawer.record_from_bank",
+    "ffl_core.api.cash_drawer.record_owner_draw",  # gone from POS #688; kept gated for an older POS
     "ffl_core.api.cash_drawer.undo_entry",
     "ffl_core.api.cash_drawer.undo_close",
     "ffl_core.api.cash_drawer.record_payout",

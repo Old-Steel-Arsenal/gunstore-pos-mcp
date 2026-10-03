@@ -142,7 +142,7 @@ class ConfirmGate(ShopfloorBase):
                 self.assertTrue(gated, f"{method} is reachable ungated via frappe_run_method")
 
     def test_record_entry_methods_are_all_gated(self):
-        for method in ("record_deposit", "record_from_bank", "record_expense"):
+        for method in ("record_deposit", "record_from_bank", "record_expense", "record_owner_draw"):
             self.assertIn(CD + method, generic._ALWAYS_CONFIRM_METHODS)
         for method in ("undo_entry", "undo_close"):
             self.assertIn(CD + method, generic._ALWAYS_CONFIRM_METHODS)
@@ -259,6 +259,11 @@ class CashDrawer(ShopfloorBase):
         self.tool("cash_drawer_log")("2026-09-28", "2026-10-04", company="OSA")
         self.assertEqual(self.client.calls[0], ("call_method", CD + "get_log", {
             "company": "OSA", "from_date": "2026-09-28", "to_date": "2026-10-04"}))
+
+    def test_log_defaults_to_the_same_company_as_the_other_reads(self):
+        self.tool("cash_drawer_log")()
+        self.assertEqual(self.client.calls[-1][0:2], ("call_method", CD + "get_log"))
+        self.assertTrue(self.client.calls[-1][2]["company"])  # resolved here, like closes / entries
 
     def test_weekly_report(self):
         self.tool("cash_drawer_weekly")("2026-09-28", "2026-10-04", company="OSA")

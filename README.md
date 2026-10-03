@@ -106,7 +106,7 @@ claude mcp add gunstore-pos-cpa --scope user \
   so env vars set in the registration win. A standalone install needs no
   `.env` file at all — and the same checkout can serve several entries with
   different `FRAPPE_BASE_URL` / mode combinations (e.g. a dev-site instance).
-- **Verify**: after connecting, `tools/list` must show exactly **25** tools and
+- **Verify**: after connecting, `tools/list` must show exactly **26** tools and
   the server name `gunstore-pos-cpa`. A misspelled/unknown mode value refuses
   to start (fail-closed) rather than silently degrading to the writable surface.
 - **Security boundary — read before handing this to a third party**: the
