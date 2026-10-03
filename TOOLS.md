@@ -143,10 +143,11 @@ GunBroker 上一条 listing 就是一把枪。
 | 看今天的抽屉 | `cash_drawer_today` | — | expected、今日/上次关账以来的流水（含 `can_undo`）、阈值、费用上限、可选费用科目/取款人 |
 | 预览关账 | `cash_drawer_preview_close` | — | 只算不记：expected / variance / needs_reason / first_count |
 | 看每日关账记录 | `cash_drawer_closes` | — | 默认不含已撤销的；cpa 可用 |
-| 看抽屉流水（存款/老板取款/费用/卖家付款） | `cash_drawer_entries` | — | 默认只看 Posted；cpa 可用 |
+| 看抽屉流水（存款/从银行取现/费用/卖家付款） | `cash_drawer_entries` | — | 默认只看 Posted；cpa 可用 |
+| 现金流水 Log | `cash_drawer_log(from_date,to_date)` | — | 逐笔现金进出（收银机按每张小票，合并后也拆开）、经手人、单据、逐笔余额、期初/期末、进出合计；默认近 7 天、≤1 年；cpa 可用 |
 | 给会计的周报 | `cash_drawer_weekly(from_date,to_date)` | — | Cash Drawer Weekly 原样透传，末尾有对账校验块（差额必须 0.00、未分类行应为空）；≤400 天；cpa 可用 |
 | **关账** | `cash_drawer_close_day` | ✅ | ⚠ 清点抽屉、关 POS 班次、记差额分录；**公司首次盘点**改为把账调到实际现金（CASH-CUTOFF）。差额≥设置阈值（默认 $20）必须写 reason。先 preview，把 `expected` 作为 `expected_seen` 传入（账动了会被拒） |
-| 存款/老板取款/费用 | `cash_drawer_record_entry(kind=deposit\|owner_draw\|expense)` | ✅ | 老板取款仅 manager、须 `withdrawer`；费用须 `expense_account`+`memo`+`receipt`，有上限（默认 $200），只能走允许科目；**不属于该 kind 的参数会被拒绝而不是悄悄丢掉** |
+| 存款/从银行取现/费用 | `cash_drawer_record_entry(kind=deposit\|from_bank\|expense)` | ✅ | 从银行取现任何柜台角色可记、`reference` 可选；费用须 `expense_account`+`memo`+`receipt`，有上限（默认 $200），只能走允许科目；**不属于该 kind 的参数会被拒绝而不是悄悄丢掉** |
 | 撤销 | `cash_drawer_undo(entry\|close)` | ✅ | 恰给一个：撤某条流水（之后有清点则拒；撤卖家付款要 System Manager）/ 撤**最新**一次清点（班次不重开）。manager |
 | 记录卖家怎么被付款 | `cash_drawer_record_payout(acquisition, method)` | ✅ | 私人卖家的收枪（trade-in 等），Cash/Zelle/Check/ACH，按收购成本记一次；**已有付款则替换**（System Manager 改方法）。manager |
 
@@ -298,19 +299,19 @@ GunBroker 上一条 listing 就是一把枪。
 
 ## 10. CPA 模式（只读会计面）+ 报表工具包
 
-**模式开关**：启动环境变量 `GUNSTORE_MCP_MODE=cpa`（默认 `full` = 全部 114 工具中默认注册 107（4 个分销商队列动作 + 3 个 GunBroker 写动作需显式开启），行为与以前完全一致；未知值直接拒绝启动，不会静默降级成可写）。cpa 模式给会计/CPA 用：**写面在工具列表里物理不存在**，不是"存在但会拒绝"。三层防御，缺一层其余仍兜底：
+**模式开关**：启动环境变量 `GUNSTORE_MCP_MODE=cpa`（默认 `full` = 全部 115 工具中默认注册 108（4 个分销商队列动作 + 3 个 GunBroker 写动作需显式开启），行为与以前完全一致；未知值直接拒绝启动，不会静默降级成可写）。cpa 模式给会计/CPA 用：**写面在工具列表里物理不存在**，不是"存在但会拒绝"。三层防御，缺一层其余仍兜底：
 
-1. **注册层**：tools/list 恰好 = 下面 25 个名字（集合相等，测试钉死）；
+1. **注册层**：tools/list 恰好 = 下面 26 个名字（集合相等，测试钉死）；
 2. **客户端层**：一切写方法 + 未逐一列名的点路径方法（`frappe_run_method` 整个不注册）→ `CpaModeRefused`；只读点路径 allowlist 逐一列名，禁通配；
 3. **Settings 层**：7 个集成 Settings doctype 的 get/list 读也被挡（配置面对会计无用，密码遮蔽是框架行为不是本仓保证）。
 
-**cpa 模式的 25 个工具**：
+**cpa 模式的 26 个工具**：
 - 通用查（4）：`frappe_list_documents` / `frappe_get_document` / `frappe_describe_doctype` / `frappe_run_report`
 - 业务只读（9）：`find_item` / `item_stock` / `firearms_in_stock` / `pending_orders` / `pending_web_orders` / `consignment_queue` / `consignment_dealers` / `consignment_serials` / `consignment_dealer_orders`
-- 盘点 / 现金抽屉只读（5，见 §3b；**full 模式同样可用**）：`cash_drawer_closes` / `cash_drawer_entries` / `cash_drawer_weekly` / `inventory_counts` / `inventory_count_variance`。cpa 没有任何一个写。盘点两个读要求该 API 用户有 Stock 角色（POS 端 `COUNT_ROLES`），抽屉三个读 Accounts User 即可
+- 盘点 / 现金抽屉只读（6，见 §3b；**full 模式同样可用**）：`cash_drawer_closes` / `cash_drawer_entries` / `cash_drawer_log` / `cash_drawer_weekly` / `inventory_counts` / `inventory_count_variance`。cpa 没有任何一个写。盘点两个读要求该 API 用户有 Stock 角色（POS 端 `COUNT_ROLES`），抽屉四个读 Accounts User 即可
 - 报表工具包（7，见下；**full 模式同样可用**）
 
-**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**,只收 Claude 连接器(动态注册的客户端)签出的令牌,**每次调用都在 POS 的 Connector Audit Log 留永久记录**(谁、哪个连接器、哪个工具、参数(秘密打码)、成败;记不上就不执行);cpa 三层闸照旧;全量面远程是 106 个(`upload_attachment` 读服务器本地路径,远程永不注册);分销商动作远程永不开,GunBroker 三个写动作只在 full 面开——POS 部署按该店 GunBroker Settings 的 enabled 自动设闸。细节见 README「Remote connector」。
+**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**,只收 Claude 连接器(动态注册的客户端)签出的令牌,**每次调用都在 POS 的 Connector Audit Log 留永久记录**(谁、哪个连接器、哪个工具、参数(秘密打码)、成败;记不上就不执行);cpa 三层闸照旧;全量面远程是 107 个(`upload_attachment` 读服务器本地路径,远程永不注册);分销商动作远程永不开,GunBroker 三个写动作只在 full 面开——POS 部署按该店 GunBroker Settings 的 enabled 自动设闸。细节见 README「Remote connector」。
 
 注意 cpa 模式**没有** `available_serials`（其默认剔除寄售/暂扣枪，在盘点语境会漏枪——盘点用 `firearms_in_stock`）。
 
@@ -355,5 +356,5 @@ GunBroker 上一条 listing 就是一把枪。
 
 ---
 
-*工具总数 114（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表 + 29 个门店运营），默认注册 107（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 25 个。对应版本 v0.8.0；工具行为以 README.md
+*工具总数 115（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表 + 30 个门店运营），默认注册 108（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 26 个。对应版本 v0.8.0；工具行为以 README.md
 和源码 `gunstore_mcp/tools/` 为准。*

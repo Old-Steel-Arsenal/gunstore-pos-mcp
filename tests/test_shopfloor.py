@@ -94,16 +94,16 @@ class ShopfloorBase(unittest.TestCase):
 
 class Surface(ShopfloorBase):
     def test_tool_count_pinned(self):
-        # 12 reads + 17 writes. TOOLS.md / CLAUDE.md / README quote the TOTAL;
+        # 13 reads + 17 writes. TOOLS.md / CLAUDE.md / README quote the TOTAL;
         # tests/test_doc_counts.py is the gate that says where.
-        self.assertEqual(len(self.tools), 29)
+        self.assertEqual(len(self.tools), 30)
         self.assertEqual(len(WRITES), 17)
 
     def test_every_write_is_listed_here_and_nothing_else_is(self):
         reads = set(self.tools) - set(WRITES)
         self.assertEqual(reads, {
             "inventory_counts", "inventory_count_state", "inventory_count_variance",
-            "cash_drawer_today", "cash_drawer_closes", "cash_drawer_entries",
+            "cash_drawer_today", "cash_drawer_closes", "cash_drawer_entries", "cash_drawer_log",
             "cash_drawer_weekly", "cash_drawer_preview_close",
             "storage_map", "storage_location", "storage_where", "storage_unassigned",
         })
@@ -142,7 +142,7 @@ class ConfirmGate(ShopfloorBase):
                 self.assertTrue(gated, f"{method} is reachable ungated via frappe_run_method")
 
     def test_record_entry_methods_are_all_gated(self):
-        for method in ("record_deposit", "record_owner_draw", "record_expense"):
+        for method in ("record_deposit", "record_from_bank", "record_expense"):
             self.assertIn(CD + method, generic._ALWAYS_CONFIRM_METHODS)
         for method in ("undo_entry", "undo_close"):
             self.assertIn(CD + method, generic._ALWAYS_CONFIRM_METHODS)
@@ -255,22 +255,27 @@ class CashDrawer(ShopfloorBase):
         self.tool("cash_drawer_entries")("OSA")
         self.assertIn(["status", "=", "Posted"], self.client.calls[1][2]["filters"])
 
+    def test_log(self):
+        self.tool("cash_drawer_log")("2026-09-28", "2026-10-04", company="OSA")
+        self.assertEqual(self.client.calls[0], ("call_method", CD + "get_log", {
+            "company": "OSA", "from_date": "2026-09-28", "to_date": "2026-10-04"}))
+
     def test_weekly_report(self):
         self.tool("cash_drawer_weekly")("2026-09-28", "2026-10-04", company="OSA")
         self.assertEqual(self.client.calls[0], ("run_report", "Cash Drawer Weekly", {
             "company": "OSA", "from_date": "2026-09-28", "to_date": "2026-10-04"}))
 
-    def test_record_entry_deposit_owner_draw_expense(self):
+    def test_record_entry_deposit_from_bank_expense(self):
         f = self.tool("cash_drawer_record_entry")
         f("deposit", 500, "OSA", reference="slip 9", confirm=True)
-        f("owner_draw", 200, withdrawer="Anji", memo="m", confirm=True)
+        f("from_bank", 200, reference="W-1", confirm=True)
         f("expense", 12.5, expense_account="Postal - X", memo="stamps",
           receipt="/private/files/r.jpg", confirm=True)
         self.assertEqual(self.client.calls, [
             ("call_method", CD + "record_deposit",
              {"company": "OSA", "amount": 500, "reference": "slip 9"}),
-            ("call_method", CD + "record_owner_draw",
-             {"company": None, "amount": 200, "withdrawer": "Anji", "memo": "m"}),
+            ("call_method", CD + "record_from_bank",
+             {"company": None, "amount": 200, "reference": "W-1"}),
             ("call_method", CD + "record_expense",
              {"company": None, "amount": 12.5, "expense_account": "Postal - X",
               "memo": "stamps", "receipt": "/private/files/r.jpg"}),
@@ -280,9 +285,10 @@ class CashDrawer(ShopfloorBase):
         f = self.tool("cash_drawer_record_entry")
         bad = [
             dict(kind="refund", amount=1),                                  # unknown kind
-            dict(kind="deposit", amount=1, withdrawer="x"),                 # stray arg
+            dict(kind="deposit", amount=1, memo="x"),                       # stray arg
             dict(kind="deposit", amount=1, receipt="/private/files/r.jpg"),  # stray arg
-            dict(kind="owner_draw", amount=1),                              # no withdrawer
+            dict(kind="owner_draw", amount=1),                              # gone
+            dict(kind="from_bank", amount=1, memo="m"),                     # stray arg
             dict(kind="expense", amount=1, memo="m", expense_account="A"),   # no receipt
             dict(kind="expense", amount=1, memo="m", receipt="/r"),          # no account
         ]
@@ -376,7 +382,7 @@ class Storage(ShopfloorBase):
 
 
 class CpaSurface(unittest.TestCase):
-    READS = {"cash_drawer_closes", "cash_drawer_entries", "cash_drawer_weekly",
+    READS = {"cash_drawer_closes", "cash_drawer_entries", "cash_drawer_log", "cash_drawer_weekly",
              "inventory_counts", "inventory_count_variance"}
 
     def test_cpa_gets_exactly_these_shopfloor_tools_and_no_writes(self):

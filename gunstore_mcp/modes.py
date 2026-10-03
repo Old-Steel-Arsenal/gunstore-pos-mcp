@@ -54,9 +54,10 @@ CPA_TOOL_NAMES: frozenset[str] = frozenset({
     "consignment_serials",
     "consignment_dealer_orders",
     # cash drawer + stocktake reads (tools/shopfloor.py) — owner decision: the
-    # accountant reads the drawer's closes / entries / weekly report and a count's
+    # accountant reads the drawer's closes / entries / log / weekly report and a count's
     # variance; none of the shop-floor WRITES is here.
     "cash_drawer_closes",
+    "cash_drawer_log",
     "cash_drawer_entries",
     "cash_drawer_weekly",
     "inventory_counts",
@@ -86,6 +87,7 @@ CPA_METHOD_ALLOWLIST: frozenset[str] = frozenset({
     "ffl_integrations.payroc.ledger.payroc_transactions",
     # stocktake reads (the cash-drawer reads ride REST list / query_report.run).
     # The POS gates both on a stock role: the cpa API user needs one to call them.
+    "ffl_core.api.cash_drawer.get_log",
     "ffl_core.api.inventory_count.get_counts",
     "ffl_core.api.inventory_count.variance",
 })
