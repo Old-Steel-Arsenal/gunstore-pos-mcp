@@ -72,8 +72,8 @@ EXPECTED_CPA_TOOLS = {
 	"pending_orders", "pending_web_orders",
 	"consignment_queue", "consignment_dealers", "consignment_serials",
 	"consignment_dealer_orders",
-	# cash drawer + stocktake reads (5) — shop-floor WRITES never appear here
-	"cash_drawer_closes", "cash_drawer_entries", "cash_drawer_weekly",
+	# cash drawer + stocktake reads (6) — shop-floor WRITES never appear here
+	"cash_drawer_closes", "cash_drawer_entries", "cash_drawer_log", "cash_drawer_weekly",
 	"inventory_counts", "inventory_count_variance",
 	# CPA reports (7)
 	"sales_report", "inventory_receipts", "gl_entries", "financial_statement",
@@ -91,6 +91,7 @@ EXPECTED_METHOD_ALLOWLIST = {
 	"osa_consignment.api.consignment_out.available_serials_for_consignment",
 	"osa_consignment.api.dealer_orders.list_dealer_orders",
 	"ffl_integrations.payroc.ledger.payroc_transactions",
+	"ffl_core.api.cash_drawer.get_log",
 	"ffl_core.api.inventory_count.get_counts",
 	"ffl_core.api.inventory_count.variance",
 }
@@ -120,21 +121,21 @@ class FakeMCP:
 
 
 class RegistrationLayer(unittest.TestCase):
-	def test_cpa_mode_registers_exactly_the_25_allowlisted_tools(self):
+	def test_cpa_mode_registers_exactly_the_26_allowlisted_tools(self):
 		mcp = FakeMCP()
 		server.register_tools(mcp, mode="cpa")
 		self.assertEqual(set(mcp.tools), EXPECTED_CPA_TOOLS)
-		self.assertEqual(len(mcp.tools), 25)
+		self.assertEqual(len(mcp.tools), 26)
 
 	def test_default_full_mode_holds_both_opt_in_sets_back(self):
-		"""Default full mode is 107, not 114: the 4 distributor queue actions and the
+		"""Default full mode is 108, not 115: the 4 distributor queue actions and the
 		3 GunBroker write actions each require an explicit opt-in. Pinned separately
 		from the full surface so that turning either gate into a no-op would break a
 		test rather than quietly restore the wider surface."""
 		mcp = FakeMCP()
 		with _actions(None):
 			server.register_tools(mcp, mode="full")
-		self.assertEqual(len(mcp.tools), 107)
+		self.assertEqual(len(mcp.tools), 108)
 		for name in ("distributor_confirm_order", "distributor_cancel_order",
 				"distributor_reroute", "distributor_update_order_ffl",
 				"gb_push_serial", "gb_end_listing", "gb_pull_orders"):
@@ -165,7 +166,7 @@ class RegistrationLayer(unittest.TestCase):
 		with _actions("1", gb="1"):
 			server.register_tools(mcp, mode="cpa")
 		self.assertEqual(set(mcp.tools), EXPECTED_CPA_TOOLS)
-		self.assertEqual(len(mcp.tools), 25)
+		self.assertEqual(len(mcp.tools), 26)
 		for name in ("gb_push_serial", "gb_end_listing", "gb_pull_orders",
 				"gb_test_connection", "gb_listing_status"):
 			self.assertNotIn(name, mcp.tools)
@@ -174,7 +175,7 @@ class RegistrationLayer(unittest.TestCase):
 		mcp = FakeMCP()
 		with _actions("1", gb="1"):
 			server.register_tools(mcp, mode="full")
-		self.assertEqual(len(mcp.tools), 114)
+		self.assertEqual(len(mcp.tools), 115)
 		self.assertTrue(EXPECTED_CPA_TOOLS <= set(mcp.tools))
 		# regression: none of the write faces leaked out of full mode
 		for name in ("frappe_run_method", "dispose_order", "receive_goods",
@@ -211,7 +212,7 @@ class RegistrationLayer(unittest.TestCase):
 		):
 			self.assertNotIn(name, mcp.tools)
 
-	def test_method_allowlist_is_exactly_the_twelve_names(self):
+	def test_method_allowlist_is_exactly_the_thirteen_names(self):
 		self.assertEqual(set(CPA_METHOD_ALLOWLIST), EXPECTED_METHOD_ALLOWLIST)
 
 	def test_settings_blocklist_is_exactly_the_ten_doctypes(self):

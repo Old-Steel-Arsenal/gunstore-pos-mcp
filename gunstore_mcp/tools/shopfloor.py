@@ -8,9 +8,10 @@ would only show against a live POS.
 
 Split by consequence:
 
-* **reads** — registered everywhere. Five of them (`inventory_counts`,
+* **reads** — registered everywhere. Six of them (`inventory_counts`,
   `inventory_count_variance`, `cash_drawer_closes`, `cash_drawer_entries`,
-  `cash_drawer_weekly`) are also on the read-only cpa surface; see modes.py.
+  `cash_drawer_log`, `cash_drawer_weekly`) are also on the read-only cpa surface;
+  see modes.py.
 * **writes** — every one needs ``confirm=true`` (owner decision: all of it is exposed,
   including the money and stock actions). They are NOT behind a registration-time env
   gate like the GunBroker / distributor actions, on purpose: each is the ordinary
@@ -48,20 +49,20 @@ _ENTRY_FIELDS = [
 _MAX_ROWS = 500  # lazy: one page per call; narrow the dates (or raise this) for more.
 
 # Which extra arguments each cash-entry kind takes. Anything else passed with that
-# kind is refused: silently dropping a withdrawer on a deposit would hide a mistake.
+# kind is refused: silently dropping a receipt on a deposit would hide a mistake.
 _ENTRY_ARGS = {
     "deposit": ("reference",),
-    "owner_draw": ("withdrawer", "memo"),
+    "from_bank": ("reference",),
     "expense": ("expense_account", "memo", "receipt"),
 }
 _ENTRY_REQUIRED = {
     "deposit": (),
-    "owner_draw": ("withdrawer",),
+    "from_bank": (),
     "expense": ("expense_account", "memo", "receipt"),
 }
 _ENTRY_METHOD = {
     "deposit": "record_deposit",
-    "owner_draw": "record_owner_draw",
+    "from_bank": "record_from_bank",
     "expense": "record_expense",
 }
 
@@ -204,7 +205,7 @@ def register(mcp: Any) -> None:
         (`expected` = the Cash account's balance plus unmerged POS cash), today's / since-
         the-last-close lines (kind, amount, entry name, can_undo), the last close and
         whether today is counted, open POS shifts, the variance threshold, the expense cap,
-        allowed withdrawers and expense accounts, and seller payments made by bank.
+        allowed expense accounts, and seller payments made by bank.
         Read-only; creates nothing. Needs a counter role."""
         return get_client().call_method(_CD + "get_today", {"company": company})
 
@@ -237,8 +238,9 @@ def register(mcp: Any) -> None:
         status: str | None = "Posted", limit: int = 100,
     ) -> Any:
         """Cash Drawer Entry rows — the cash that left or entered outside a sale — newest
-        first, with the journal entry each booked. entry_type: Deposit | Owner Draw |
-        Expense | Payout (seller paid for a gun) | Payout Adjustment (empty = all).
+        first, with the journal entry each booked. entry_type: Deposit | From Bank |
+        Expense | Payout (seller paid for a gun) | Payout Adjustment | Owner Draw (old entries
+        only; no longer made) (empty = all).
         status: Posted (default) | Voided (empty = both). from_date / to_date filter
         posting_date. Expenses carry the receipt file URL. Read-only; also on the cpa
         surface."""
@@ -262,7 +264,7 @@ def register(mcp: Any) -> None:
     ) -> Any:
         """The Cash Drawer Weekly report, UNCHANGED (columns + rows), for the bookkeeper:
         one row per day with opening books, register sales, counter orders, customer
-        payments, cash refunds, seller payouts, deposits, owner draws, cash expenses, count
+        payments, cash refunds, seller payouts, deposits, cash from the bank, cash expenses, count
         difference, closing books, expected / counted / variance and the reason — plus a
         proof block (daily lines vs the Cash ledger, must be 0.00; books vs the last count;
         any UNCLASSIFIED ledger line, which should be empty). Range ≤ 400 days (YYYY-MM-DD).
@@ -271,6 +273,23 @@ def register(mcp: Any) -> None:
         return client.run_report("Cash Drawer Weekly", {
             "company": company or _default_company(client),
             "from_date": from_date, "to_date": to_date})
+
+    @mcp.tool()
+    def cash_drawer_log(
+        from_date: str | None = None, to_date: str | None = None, company: str | None = None
+    ) -> Any:
+        """The Cash Drawer page's Log: every cash movement in a date range, oldest first —
+        register sales (one line per POS invoice, even after the nightly merge), counter
+        orders, customer payments, refunds, seller payouts, deposits, cash from the bank,
+        expenses, count differences and the first count — each with who posted it, the
+        document, the amount (+ in / − out) and the drawer balance after it. Also the
+        opening balance (books before from_date), closing, and cash in / out totals (count
+        differences are in neither). Dates YYYY-MM-DD; default the last 7 days; at most a
+        year. Read-only; also on the cpa surface."""
+        client = get_client()
+        return client.call_method(_CD + "get_log", {
+            "company": company or _default_company(client), "from_date": from_date,
+            "to_date": to_date})
 
     @mcp.tool()
     def cash_drawer_preview_close(counted: float, company: str | None = None) -> Any:
@@ -308,17 +327,17 @@ def register(mcp: Any) -> None:
     @mcp.tool()
     def cash_drawer_record_entry(
         kind: str, amount: float, company: str | None = None,
-        reference: str | None = None, withdrawer: str | None = None,
+        reference: str | None = None,
         memo: str | None = None, expense_account: str | None = None,
         receipt: str | None = None, confirm: bool = False,
     ) -> Any:
-        """⚠ Record cash leaving the drawer — books a journal entry. kind:
+        """⚠ Record cash leaving or entering the drawer outside a sale — books a journal
+        entry. kind:
 
         * deposit — cash taken to the bank (Dr Operating Bank / Cr Cash). Optional:
           reference (slip number).
-        * owner_draw — cash an owner took (Dr Due from Owner / Cr Cash). Manager only.
-          Needs withdrawer (must be on the Cash Drawer Settings list when it is not
-          empty); optional memo.
+        * from_bank — cash taken out of the bank and put in the drawer (Dr Cash / Cr
+          Operating Bank). Any counter role. Optional: reference (withdrawal slip).
         * expense — a small cash expense (Dr the expense account / Cr Cash), capped (200 by
           default) and only to an allowed account (cash_drawer_today lists them). Needs
           expense_account, memo and receipt.
@@ -334,7 +353,7 @@ def register(mcp: Any) -> None:
         kind = (kind or "").strip().lower()
         if kind not in _ENTRY_ARGS:
             raise ValueError(f"kind must be one of {', '.join(_ENTRY_ARGS)} (got {kind!r}).")
-        given = {"reference": reference, "withdrawer": withdrawer, "memo": memo,
+        given = {"reference": reference, "memo": memo,
                  "expense_account": expense_account, "receipt": receipt}
         stray = sorted(k for k, v in given.items() if v and k not in _ENTRY_ARGS[kind])
         if stray:
@@ -355,7 +374,7 @@ def register(mcp: Any) -> None:
     ) -> Any:
         """⚠ Undo cash-drawer bookkeeping — give exactly ONE of:
 
-        * entry — a Cash Drawer Entry (deposit, owner draw, expense or seller payment):
+        * entry — a Cash Drawer Entry (deposit, cash from the bank, expense or seller payment):
           its journal entry is cancelled. Refused once a count was taken after it; undoing
           a seller payment (and its cost corrections) needs a System Manager.
         * close — the LATEST Cash Drawer Close of its company: its difference / first-count

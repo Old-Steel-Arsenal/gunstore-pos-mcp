@@ -78,10 +78,10 @@ Secrets stay in `.env` (loaded by the server), not in the agent config.
 
 > **中文速查手册（按"你想干什么"组织，含安全须知与替代路径）：[TOOLS.md](TOOLS.md)**
 
-114 tools total: 10 generic + 56 curated + 12 distributor + 7 CPA reports + 29 shop-floor; 107 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
+115 tools total: 10 generic + 56 curated + 12 distributor + 7 CPA reports + 30 shop-floor; 108 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
 
 **Modes**: `GUNSTORE_MCP_MODE=cpa` starts a read-only accountant surface —
-exactly 25 tools (the write surface is never registered), a per-name read-only
+exactly 26 tools (the write surface is never registered), a per-name read-only
 method allowlist at the client layer, and the 7 integration Settings doctypes
 blocked from reads. Default (`full`) is the whole surface. Register a second
 server entry (e.g. `gunstore-pos-cpa`) with the same command plus
@@ -106,7 +106,7 @@ claude mcp add gunstore-pos-cpa --scope user \
   so env vars set in the registration win. A standalone install needs no
   `.env` file at all — and the same checkout can serve several entries with
   different `FRAPPE_BASE_URL` / mode combinations (e.g. a dev-site instance).
-- **Verify**: after connecting, `tools/list` must show exactly **25** tools and
+- **Verify**: after connecting, `tools/list` must show exactly **26** tools and
   the server name `gunstore-pos-cpa`. A misspelled/unknown mode value refuses
   to start (fail-closed) rather than silently degrading to the writable surface.
 - **Security boundary — read before handing this to a third party**: the
@@ -171,9 +171,9 @@ Every write needs `confirm=true`; there is no registration gate (they are the sa
 | `inventory_count_scan` / `inventory_count_set_qty` / `inventory_count_toggle_serial` / `inventory_count_undo` | record a serial or UPC scan / type a quantity / tick a gun by hand / remove an entry (`confirm`) |
 | `inventory_count_finalize` | posts ONE Stock Reconciliation for the non-serialized differences, saves the firearm report (`confirm`; firearms never adjusted) |
 | `cash_drawer_today` / `cash_drawer_preview_close` | the drawer page (expected cash + lines) / what a close WOULD do (read-only) |
-| `cash_drawer_closes` / `cash_drawer_entries` / `cash_drawer_weekly` | daily counts / deposits, owner draws, expenses, seller payouts / the Cash Drawer Weekly report (read-only; also on the cpa surface) |
+| `cash_drawer_closes` / `cash_drawer_entries` / `cash_drawer_log` / `cash_drawer_weekly` | daily counts / deposits, cash from the bank, expenses, seller payouts / every cash movement with who and the running balance / the Cash Drawer Weekly report (read-only; also on the cpa surface) |
 | `cash_drawer_close_day` | count the drawer, close POS shifts, book the over/short or first-count entry (`confirm`) |
-| `cash_drawer_record_entry` | `kind` = deposit \| owner_draw \| expense (`confirm`); an expense needs a receipt file the same POS user uploaded within a day — remote has no upload tool, so the user uploads it in the POS and passes the `file_url` |
+| `cash_drawer_record_entry` | `kind` = deposit \| from_bank \| expense (`confirm`); an expense needs a receipt file the same POS user uploaded within a day — remote has no upload tool, so the user uploads it in the POS and passes the `file_url` |
 | `cash_drawer_undo` / `cash_drawer_record_payout` | cancel an entry or the latest close / record (or replace) how a private seller was paid (`confirm`; managers) |
 | `storage_map` / `storage_location` / `storage_where` / `storage_unassigned` | the store map (`zones_only` = zone list) / one location's contents / where a serial or item is / unassigned and to-confirm lists (read-only) |
 | `storage_create_zone` / `storage_add_positions` / `storage_set_disabled` | zone management (`confirm`; Stock Manager) |
@@ -221,7 +221,7 @@ and approves. No key is typed anywhere, and the server holds none.
   `ffl_core/api/connector.py` and the Connector Audit Log doctype.
 - A user with **Restrict IP** set cannot use the connector: calls reach the POS from
   the connector (and ultimately from Claude's servers), never from the user's IP.
-- `cpa` mode keeps all three read-only layers. The full surface is **106 tools**
+- `cpa` mode keeps all three read-only layers. The full surface is **107 tools**
   remotely: `upload_attachment` reads a path on the *server* and is never registered
   there. The distributor actions never open remotely (the server refuses to start);
   the 3 GunBroker writes open on the **full** connector only, where the POS deploy
