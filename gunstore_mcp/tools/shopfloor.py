@@ -409,7 +409,10 @@ def register(mcp: Any) -> None:
         """The store map: every zone (Slots = numbered one-gun positions; Open = one
         location holding anything) with each position's contents — guns (serial, item) and
         non-serialized qty — and `unassigned` counts (guns / items in no location, items
-        sold without saying where from = `to_confirm`). zones_only=true returns just
+        sold without saying where from = `to_confirm`), and `plans` — the floor plans, one
+        per room: {name, plan_name, width, height (feet), layout: {shapes: [{type: zone|wall|
+        door|area|label, zone?, text?, x, y (centre), w, h, r (degrees), rows?}]}} (drawn
+        on the POS page; no MCP tool edits them). zones_only=true returns just
         {company, zones: [{name, zone_name, kind, disabled, positions}], can_manage} — the
         cheap way to list zones. Read-only; touches no stock or books."""
         method = "get_options" if zones_only else "get_map"

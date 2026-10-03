@@ -158,7 +158,7 @@ GunBroker 上一条 listing 就是一把枪。
 
 | 你想… | 工具 | confirm | 说明 |
 |---|---|---|---|
-| 看全店库位图 | `storage_map` | — | 每区每位的内容 + `unassigned`；`zones_only=true` 只列区（便宜） |
+| 看全店库位图 | `storage_map` | — | 每区每位的内容 + `unassigned` + `plans`（每个房间的平面图：区/墙/门/区块/标签的位置尺寸，单位英尺；只读，在 POS 页面里画）；`zones_only=true` 只列区（便宜） |
 | 看某个位置里有什么 | `storage_location` | — | 位置名即条码 |
 | 某把枪/某商品在哪 | `storage_where` | — | `serial_no` → 它的 `storage_location`；`item_codes` → 各位置数量 + 未入位数量 + `sole` |
 | 还没入位的 / 待确认的 | `storage_unassigned` | — | `to_confirm` = 卖出/发货时没说从哪个位置拿的商品 |

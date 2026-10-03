@@ -83,6 +83,10 @@ _ALWAYS_CONFIRM_METHODS = {
     "ffl_core.api.storage.scan_move",
     "ffl_core.api.storage.undo_move",
     "ffl_core.api.storage.confirm_taken",
+    # Floor plans (POS #691): a save rewrites a whole room's layout. delete_floor_plan is
+    # caught by the verb regex.
+    "ffl_core.api.storage.create_floor_plan",
+    "ffl_core.api.storage.save_floor_plan",
     # Both now book cash on request: a trade-in intake pays the seller out
     # (payout_method -> CASH-PAYOUT) and a cost correction can book the difference
     # (payout_was_different). Neither is wrapped by a dedicated tool.

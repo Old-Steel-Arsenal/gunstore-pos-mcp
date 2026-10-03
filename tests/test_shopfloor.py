@@ -147,6 +147,11 @@ class ConfirmGate(ShopfloorBase):
         for method in ("undo_entry", "undo_close"):
             self.assertIn(CD + method, generic._ALWAYS_CONFIRM_METHODS)
 
+    def test_floor_plan_writes_are_gated(self):
+        for method in ("create_floor_plan", "save_floor_plan"):
+            self.assertIn(ST + method, generic._ALWAYS_CONFIRM_METHODS)
+        self.assertTrue(generic._DESTRUCTIVE_METHOD.search("delete_floor_plan"))
+
     def test_trade_in_and_cost_correction_book_cash_so_they_are_gated(self):
         self.assertIn("ffl_core.api.trade_in.create_trade_in_intake",
                       generic._ALWAYS_CONFIRM_METHODS)
