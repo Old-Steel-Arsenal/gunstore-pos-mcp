@@ -281,6 +281,7 @@ class CashDrawer(ShopfloorBase):
         f("from_bank", 200, reference="W-1", confirm=True)
         f("expense", 12.5, expense_account="Postal - X", memo="stamps",
           receipt="/private/files/r.jpg", confirm=True)
+        f("expense", 9, expense_account="Meals - X", memo="lunch", confirm=True)  # receipt optional
         self.assertEqual(self.client.calls, [
             ("call_method", CD + "record_deposit",
              {"company": "OSA", "amount": 500, "reference": "slip 9"}),
@@ -289,6 +290,9 @@ class CashDrawer(ShopfloorBase):
             ("call_method", CD + "record_expense",
              {"company": None, "amount": 12.5, "expense_account": "Postal - X",
               "memo": "stamps", "receipt": "/private/files/r.jpg"}),
+            ("call_method", CD + "record_expense",
+             {"company": None, "amount": 9, "expense_account": "Meals - X",
+              "memo": "lunch", "receipt": None}),
         ])
 
     def test_record_entry_refuses_bad_shapes_before_any_call(self):
@@ -299,7 +303,7 @@ class CashDrawer(ShopfloorBase):
             dict(kind="deposit", amount=1, receipt="/private/files/r.jpg"),  # stray arg
             dict(kind="owner_draw", amount=1),                              # gone
             dict(kind="from_bank", amount=1, memo="m"),                     # stray arg
-            dict(kind="expense", amount=1, memo="m", expense_account="A"),   # no receipt
+            dict(kind="expense", amount=1, expense_account="A"),             # no memo
             dict(kind="expense", amount=1, memo="m", receipt="/r"),          # no account
         ]
         for kw in bad:

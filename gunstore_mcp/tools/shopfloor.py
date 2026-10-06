@@ -58,7 +58,7 @@ _ENTRY_ARGS = {
 _ENTRY_REQUIRED = {
     "deposit": (),
     "from_bank": (),
-    "expense": ("expense_account", "memo", "receipt"),
+    "expense": ("expense_account", "memo"),
 }
 _ENTRY_METHOD = {
     "deposit": "record_deposit",
@@ -340,9 +340,9 @@ def register(mcp: Any) -> None:
           Operating Bank). Any counter role. Optional: reference (withdrawal slip).
         * expense — a small cash expense (Dr the expense account / Cr Cash), capped (200 by
           default) and only to an allowed account (cash_drawer_today lists them). Needs
-          expense_account, memo and receipt.
+          expense_account and memo; receipt is optional.
 
-        RECEIPT RULE (expense): receipt is the file_url of a photo that the SAME POS user
+        RECEIPT RULE (expense, when one is given): receipt is the file_url of a photo that the SAME POS user
         uploaded within the last day, still private and attached to nothing, and that no
         other expense has used — the POS refuses the call otherwise, before booking
         anything. The remote connector has no upload tool, so the signed-in user uploads
