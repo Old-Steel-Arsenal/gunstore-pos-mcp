@@ -304,6 +304,7 @@ class CashDrawer(ShopfloorBase):
             dict(kind="owner_draw", amount=1),                              # gone
             dict(kind="from_bank", amount=1, memo="m"),                     # stray arg
             dict(kind="expense", amount=1, expense_account="A"),             # no memo
+            dict(kind="expense", amount=1, memo="  ", expense_account="A", receipt="/r"),  # blank memo
             dict(kind="expense", amount=1, memo="m", receipt="/r"),          # no account
         ]
         for kw in bad:

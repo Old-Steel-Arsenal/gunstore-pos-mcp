@@ -147,11 +147,11 @@ GunBroker 上一条 listing 就是一把枪。
 | 现金流水 Log | `cash_drawer_log(from_date,to_date)` | — | 逐笔现金进出（收银机按每张小票，合并后也拆开）、经手人、单据、逐笔余额、期初/期末、进出合计；默认近 7 天、≤1 年；cpa 可用 |
 | 给会计的周报 | `cash_drawer_weekly(from_date,to_date)` | — | Cash Drawer Weekly 原样透传，末尾有对账校验块（差额必须 0.00、未分类行应为空）；≤400 天；cpa 可用 |
 | **关账** | `cash_drawer_close_day` | ✅ | ⚠ 清点抽屉、关 POS 班次、记差额分录；**公司首次盘点**改为把账调到实际现金（CASH-CUTOFF）。差额≥设置阈值（默认 $20）必须写 reason。先 preview，把 `expected` 作为 `expected_seen` 传入（账动了会被拒） |
-| 存款/从银行取现/费用 | `cash_drawer_record_entry(kind=deposit\|from_bank\|expense)` | ✅ | 从银行取现任何柜台角色可记、`reference` 可选；费用须 `expense_account`+`memo`+`receipt`，有上限（默认 $200），只能走允许科目；**不属于该 kind 的参数会被拒绝而不是悄悄丢掉** |
+| 存款/从银行取现/费用 | `cash_drawer_record_entry(kind=deposit\|from_bank\|expense)` | ✅ | 从银行取现任何柜台角色可记、`reference` 可选；费用须 `expense_account`+`memo`，`receipt` 可选（POS 1.8.2 起；更早的 POS 仍要求收据），有上限（默认 $200），只能走允许科目；**不属于该 kind 的参数会被拒绝而不是悄悄丢掉** |
 | 撤销 | `cash_drawer_undo(entry\|close)` | ✅ | 恰给一个：撤某条流水（之后有清点则拒；撤卖家付款要 System Manager）/ 撤**最新**一次清点（班次不重开）。manager |
 | 记录卖家怎么被付款 | `cash_drawer_record_payout(acquisition, method)` | ✅ | 私人卖家的收枪（trade-in 等），Cash/Zelle/Check/ACH，按收购成本记一次；**已有付款则替换**（System Manager 改方法）。manager |
 
-**费用收据规则**（服务端 `_receipt_file`）：`receipt` 必须是**同一个 POS 用户 1 天内上传**、仍私有、**未挂在任何文档上**、且没被别的费用用过的文件 URL。**远程连接器没有 `upload_attachment`**，所以用户要在 POS 里自己传图（私有 File，不挂文档），再把 file_url 交给 `cash_drawer_record_entry`；本机 stdio 版可用 `upload_attachment(file_path, is_private=true)`（不要传 doctype/name）。因为服务端本来就接受这种收据，远程面**照常注册** expense，不需要摘掉。收据不合规时由 POS 拒绝，什么都不会入账。
+**费用收据规则**（服务端 `_receipt_file`，仅在传了收据时校验）：`receipt` 必须是**同一个 POS 用户 1 天内上传**、仍私有、**未挂在任何文档上**、且没被别的费用用过的文件 URL。**远程连接器没有 `upload_attachment`**，所以用户要在 POS 里自己传图（私有 File，不挂文档），再把 file_url 交给 `cash_drawer_record_entry`；本机 stdio 版可用 `upload_attachment(file_path, is_private=true)`（不要传 doctype/name）。因为服务端本来就接受这种收据，远程面**照常注册** expense，不需要摘掉。收据不合规时由 POS 拒绝，什么都不会入账。
 
 ### 库位（Storage Locations）
 **只动追踪层**：不建任何库存/会计单据，不改库存和账。Slots 区=编号槽位（A1,A2…，每槽一把枪）；Open 区=**一个**同名位置（货架/展柜/保险柜，不限量，枪和别的都能放）。

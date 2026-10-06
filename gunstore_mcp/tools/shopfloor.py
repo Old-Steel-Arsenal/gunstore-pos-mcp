@@ -342,10 +342,10 @@ def register(mcp: Any) -> None:
           default) and only to an allowed account (cash_drawer_today lists them). Needs
           expense_account and memo; receipt is optional.
 
-        RECEIPT RULE (expense, when one is given): receipt is the file_url of a photo that the SAME POS user
-        uploaded within the last day, still private and attached to nothing, and that no
-        other expense has used — the POS refuses the call otherwise, before booking
-        anything. The remote connector has no upload tool, so the signed-in user uploads
+        RECEIPT RULE (expense, when one is given): receipt is the file_url of a photo
+        that the SAME POS user uploaded within the last day, still private and attached
+        to nothing, and that no other expense has used — the POS refuses the call
+        otherwise, before booking anything. POS before 1.8.2 still requires a receipt. The remote connector has no upload tool, so the signed-in user uploads
         the photo themselves in the POS (a private File, not attached to a document) and
         you pass its file_url; the local (stdio) server can use upload_attachment with
         is_private=true and no doctype/name. Arguments that do not belong to the kind are
@@ -354,7 +354,7 @@ def register(mcp: Any) -> None:
         if kind not in _ENTRY_ARGS:
             raise ValueError(f"kind must be one of {', '.join(_ENTRY_ARGS)} (got {kind!r}).")
         given = {"reference": reference, "memo": memo,
-                 "expense_account": expense_account, "receipt": receipt}
+                 "expense_account": expense_account, "receipt": (receipt or "").strip() or None}
         stray = sorted(k for k, v in given.items() if v and k not in _ENTRY_ARGS[kind])
         if stray:
             raise ValueError(f"{stray} do not apply to a {kind} entry — refusing rather than "
