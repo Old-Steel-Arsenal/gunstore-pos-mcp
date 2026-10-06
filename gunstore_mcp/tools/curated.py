@@ -426,9 +426,18 @@ def register(mcp: Any) -> None:
         """Receive stock via the Receive Goods flow: creates + submits a Purchase
         Receipt; for firearms it also creates one FFL Acquisition per serial and
         pushes them to FastBound. payload mirrors the Receive Goods page:
-        {supplier, source, warehouse, acquisition_source, items:[{item_code, qty,
-        rate, serials:[...], manufacturer, model_name, caliber, firearm_type,
-        importer, sell_price, service_need}], ...}. Consequential — confirm=true."""
+        {supplier, source, warehouse, acquisition_source, acquisition_type,
+        items:[{item_code, qty, rate, serials:[...], manufacturer, model_name,
+        caliber, firearm_type, importer, sell_price, service_need}], ...}.
+        A purchase PAID to a private seller (acquisition_source "Individual",
+        acquisition_type blank / "Purchase" / "Individual", lines costing
+        anything; gunstore-pos #705 on) must also say how the seller was paid:
+        seller_payment_method "Cash" | "Zelle" | "Check" | "ACH", plus
+        seller_payment_reference (check number, Zelle confirmation, ACH ref)
+        unless Cash. The POS books it with the receipt (Cash leaves the drawer,
+        the rest the bank) and returns seller_payment; without the method the
+        receive is refused. Consignment, Gunsmithing, transfer and dealer
+        receipts take no payment. Consequential — confirm=true."""
         require_confirm("receive_goods", confirm)
         return get_client().call_method(
             "ffl_core.api.receive_goods.create_receive", {"payload": payload}

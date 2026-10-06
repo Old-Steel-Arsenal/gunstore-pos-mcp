@@ -108,7 +108,7 @@ GunBroker 上一条 listing 就是一把枪。
 
 | 你想… | 工具 | confirm | 说明 |
 |---|---|---|---|
-| 正式收货（含枪支） | `receive_goods` | ✅ | 建并提交 Purchase Receipt；枪支自动逐把建 FFL Acquisition 并推 FastBound。枪**必须**走这个，不能用 add_stock |
+| 正式收货（含枪支） | `receive_goods` | ✅ | 建并提交 Purchase Receipt；枪支自动逐把建 FFL Acquisition 并推 FastBound。枪**必须**走这个，不能用 add_stock。**向个人卖家付钱买的货**（`acquisition_source="Individual"`，`acquisition_type` 为空 / `Purchase` / `Individual`，有成本；gunstore-pos #705 起）payload 必须带 `seller_payment_method`（`Cash` / `Zelle` / `Check` / `ACH`），非 Cash 还要 `seller_payment_reference`（支票号 / Zelle 确认号 / ACH 参考号）——POS 随收货同一事务记这笔付款（Cash 出抽屉，其余出银行），返回 `seller_payment`；缺了就整单拒收。Consignment / Gunsmithing / 转移 / 经销商进货不付款、不用带 |
 | 给普通商品加库存 | `add_stock` | ✅ | 弹药/配件等非序列号商品 |
 | 盘点后把数量改成实数 | `set_stock` | ✅ | 会留盘点原因的审计记录 |
 | 标记/取消"待枪匠维修" | `toggle_service_need` | ✅ | 同步开/关枪匠 ToDo |

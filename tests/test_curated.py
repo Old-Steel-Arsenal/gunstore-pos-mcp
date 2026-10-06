@@ -154,6 +154,22 @@ class CuratedTools(unittest.TestCase):
 			{"payload": payload},
 		))
 
+	def test_receive_goods_passes_the_seller_payment_through(self):
+		"""A paid purchase from a private seller says how the seller was paid; the POS books it from these two keys,
+		so the tool must hand them over untouched (it never builds or filters the payload)."""
+		payload = {
+			"acquisition_source": "Individual", "acquisition_type": "Individual", "source": "Individual",
+			"seller_payment_method": "Check", "seller_payment_reference": "1042",
+			"items": [{"item_code": "AMMO", "qty": 2, "rate": 10}],
+		}
+		self.tools["receive_goods"](dict(payload), confirm=True)
+		self.assertEqual(self._last(), (
+			"call_method", "ffl_core.api.receive_goods.create_receive", {"payload": payload},
+		))
+		doc = self.tools["receive_goods"].__doc__ or ""
+		for needed in ("seller_payment_method", "seller_payment_reference", "Cash", "Zelle", "Check", "ACH"):
+			self.assertIn(needed, doc)
+
 	def test_add_stock(self):
 		with self.assertRaises(WriteRefused):
 			self.tools["add_stock"]("ITEM", 5)
