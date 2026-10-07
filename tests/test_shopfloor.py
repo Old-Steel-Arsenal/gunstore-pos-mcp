@@ -371,10 +371,13 @@ class Storage(ShopfloorBase):
 
     def test_zone_and_position_writes(self):
         self.tool("storage_create_zone")("Rack 1", "Open", confirm=True)
+        self.tool("storage_create_zone")("A", "Slots", 30, sides=2, numbering="In order", confirm=True)
         self.tool("storage_add_positions")("A", 3, confirm=True)
         self.tool("storage_set_disabled")(False, location="A2", confirm=True)
         self.assertEqual([c[2] for c in self.client.calls], [
-            {"zone_name": "Rack 1", "kind": "Open", "count": 1, "company": None},
+            {"zone_name": "Rack 1", "kind": "Open", "count": 1, "company": None},  # no sides: older POS
+            {"zone_name": "A", "kind": "Slots", "count": 30, "company": None, "sides": 2,
+             "numbering": "In order"},
             {"zone": "A", "count": 3},
             {"disabled": 0, "zone": None, "location": "A2"},
         ])
