@@ -26,7 +26,7 @@ create a stock or accounting document.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from ..frappe_client import get_client
 from ..safety import require_confirm
@@ -465,24 +465,24 @@ def register(mcp: Any) -> None:
     @mcp.tool()
     def storage_create_zone(
         zone_name: str, kind: str, count: int = 1, company: str | None = None,
-        sides: int | None = None, numbering: str | None = None, confirm: bool = False,
+        sides: int = 0, numbering: Literal["Odd / even", "In order"] = "Odd / even",
+        confirm: bool = False,
     ) -> Any:
         """Create a storage zone and its positions. kind: Slots (positions named A1, A2, …,
         ONE firearm each — `count` says how many) or Open (ONE location named like the
         zone, no limit, holds firearms and everything else; `count` is ignored — create one
         zone per rack, case or safe). Slots only, how it is drawn on the floor plan:
-        `sides` = how many sides the slots are on (1–50; a two-sided rack is 2; omit = fit
-        to the shape drawn), `numbering` = "Odd / even" (default: 1, 3, 5 … down one side,
-        2, 4, 6 … facing them) or "In order" — it only matters on two sides. Stock Manager.
-        Returns {zone, positions}. confirm=true."""
+        `sides` = how many sides the slots are on (1–50; a two-sided rack is 2; 0 = fit to
+        the shape drawn), `numbering` = "Odd / even" (1, 3, 5 … down one side, 2, 4, 6 …
+        facing them) or "In order" — only two sides are ever counted odd / even. Needs POS
+        1.8.5+ (an older POS silently ignores both). Stock Manager. Returns {zone,
+        positions}. confirm=true."""
+        if kind == "Open" and sides:
+            raise ValueError("An Open zone is one location: it has no sides.")
         require_confirm(f"storage_create_zone {zone_name} ({kind})", confirm)
-        args = {"zone_name": zone_name, "kind": kind, "count": count, "company": company}
-        # sent only when asked for: POS before 1.8.5 does not take them
-        if sides is not None:
-            args["sides"] = sides
-        if numbering is not None:
-            args["numbering"] = numbering
-        return get_client().call_method(_ST + "create_zone", args)
+        return get_client().call_method(_ST + "create_zone", {
+            "zone_name": zone_name, "kind": kind, "count": count, "company": company,
+            "sides": sides, "numbering": numbering})
 
     @mcp.tool()
     def storage_add_positions(zone: str, count: int, confirm: bool = False) -> Any:
