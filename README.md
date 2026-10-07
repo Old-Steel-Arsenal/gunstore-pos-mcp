@@ -174,7 +174,7 @@ Every write needs `confirm=true`; there is no registration gate (they are the sa
 | `cash_drawer_closes` / `cash_drawer_entries` / `cash_drawer_log` / `cash_drawer_weekly` | daily counts / deposits, cash from the bank, expenses, seller payouts / every cash movement with who and the running balance / the Cash Drawer Weekly report (read-only; also on the cpa surface) |
 | `cash_drawer_close_day` | count the drawer, close POS shifts, book the over/short or first-count entry (`confirm`) |
 | `cash_drawer_record_entry` | `kind` = deposit \| from_bank \| expense (`confirm`); an expense needs `expense_account` + `memo`; a receipt is optional (POS 1.8.2+), and when given must be a file the same POS user uploaded within a day — remote has no upload tool, so the user uploads it in the POS and passes the `file_url` |
-| `cash_drawer_undo` / `cash_drawer_record_payout` | cancel an entry or the latest close / record (or replace) how a private seller was paid (`confirm`; managers) |
+| `cash_drawer_undo` / `cash_drawer_record_payout` | cancel an entry or the latest close / change the method of / re-book an old-way seller payment (first payments go through the receipt) (`confirm`; managers) |
 | `storage_map` / `storage_location` / `storage_where` / `storage_unassigned` | the store map (`zones_only` = zone list) / one location's contents / where a serial or item is / unassigned and to-confirm lists (read-only) |
 | `storage_create_zone` / `storage_add_positions` / `storage_set_disabled` | zone management (`confirm`; Stock Manager) |
 | `storage_scan_move` / `storage_undo_move` / `storage_confirm_taken` | assign a gun / put units into a location / undo it / say where sold units came from (`confirm`) |

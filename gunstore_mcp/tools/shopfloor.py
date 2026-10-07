@@ -391,13 +391,13 @@ def register(mcp: Any) -> None:
 
     @mcp.tool()
     def cash_drawer_record_payout(acquisition: str, method: str, confirm: bool = False) -> Any:
-        """⚠ Record how the PRIVATE SELLER of an acquired firearm was paid (trade-in or other
-        purchase from an individual): method Cash | Zelle | Check | ACH. Books Dr Stock
-        Adjustment / Cr Cash (or the bank) at exactly the acquisition's cost, once per
-        acquisition. If a payout is ALREADY recorded this REPLACES it (the old one is undone
-        and the same net booked with the new method) — a System Manager's fix for a wrong
-        method. Refused for a purchase that was spent as a credit on a sale. Manager roles
-        only. Requires confirm=true."""
+        """⚠ Change the method of a gun's OWN seller payment recorded the old way (before POS 1.8.4),
+        or book one that was undone again: method Cash | Zelle | Check | ACH. Books Dr Stock
+        Adjustment / Cr Cash (or the bank) at the net last paid, replacing the recorded one (a
+        System Manager's fix for a wrong method). A FIRST payment is refused: since 1.8.4 a
+        private seller is paid with the gun's receipt (POS Trade-in dialog or receive_goods —
+        a Goods Payout). Refused for a purchase spent as a credit on a sale. Manager roles only.
+        Requires confirm=true."""
         require_confirm(f"cash_drawer_record_payout {acquisition} via {method}", confirm)
         return get_client().call_method(
             _CD + "record_payout", {"acquisition": acquisition, "method": method})
