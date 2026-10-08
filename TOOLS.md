@@ -162,7 +162,7 @@ GunBroker 上一条 listing 就是一把枪。
 | 看某个位置里有什么 | `storage_location` | — | 位置名即条码 |
 | 某把枪/某商品在哪 | `storage_where` | — | `serial_no` → 它的 `storage_location`；`item_codes` → 各位置数量 + 未入位数量 + `sole` |
 | 还没入位的 / 待确认的 | `storage_unassigned` | — | `to_confirm` = 卖出/发货时没说从哪个位置拿的商品 |
-| 建区 | `storage_create_zone` | ✅ | `kind`=Slots（`count` 个槽）或 Open（一个位置，`count` 忽略）。Stock Manager |
+| 建区 | `storage_create_zone` | ✅ | `kind`=Slots（`count` 个槽）或 Open（一个位置，`count` 忽略）。Slots 可选 `sides`（几面，双面架=2，0/不填=按图上形状；Open 区给了就拒）、`numbering`（`Odd / even` 默认：一面 1,3,5… 对面 2,4,6…；`In order`；只对两面生效）；需 POS ≥ 1.8.5（更老的 POS 会静默忽略这两项）。Stock Manager |
 | 给 Slots 区加槽 | `storage_add_positions` | ✅ | 不重排不删除；Open 区拒绝 |
 | 停用/启用 区或位置 | `storage_set_disabled` | ✅ | 恰给 `zone` 或 `location` 之一；停用要求为空 |
 | 把枪/商品放进位置 | `storage_scan_move` | ✅ | **这一个工具就是「指派序列号」和「放入数量」**（`code`=序列号 / UPC；`qty`）。来源不唯一时什么都不动、`result=choose` 列 `options`，带 `from_location` 重调。`error` 是回复不是异常 |
@@ -356,5 +356,5 @@ GunBroker 上一条 listing 就是一把枪。
 
 ---
 
-*工具总数 115（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表 + 30 个门店运营），默认注册 108（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 26 个。对应版本 v0.9.0；工具行为以 README.md
+*工具总数 115（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表 + 30 个门店运营），默认注册 108（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 26 个。对应版本 v0.9.1；工具行为以 README.md
 和源码 `gunstore_mcp/tools/` 为准。*

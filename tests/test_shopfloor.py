@@ -36,7 +36,8 @@ WRITES = {
     "cash_drawer_undo": ({"entry": "CDE-1"}, CD + "undo_entry"),
     "cash_drawer_record_payout": (
         {"acquisition": "ACQ-1", "method": "Zelle"}, CD + "record_payout"),
-    "storage_create_zone": ({"zone_name": "A", "kind": "Slots", "count": 4}, ST + "create_zone"),
+    "storage_create_zone": (
+        {"zone_name": "A", "kind": "Slots", "count": 4, "sides": 2}, ST + "create_zone"),
     "storage_add_positions": ({"zone": "A", "count": 2}, ST + "add_positions"),
     "storage_set_disabled": ({"disabled": True, "zone": "A"}, ST + "set_disabled"),
     "storage_scan_move": ({"to_location": "A1", "code": "SN1"}, ST + "scan_move"),
@@ -369,12 +370,21 @@ class Storage(ShopfloorBase):
         self.client.list_documents = lambda *a, **k: []
         self.assertEqual(self.tool("storage_where")(serial_no="NOPE"), {"serial": None})
 
+    def test_an_open_zone_with_sides_is_refused_before_anything_is_sent(self):
+        with self.assertRaises(ValueError):
+            self.tool("storage_create_zone")("Rack 1", "Open", sides=2, confirm=True)
+        self.assertEqual(self.client.calls, [])
+
     def test_zone_and_position_writes(self):
         self.tool("storage_create_zone")("Rack 1", "Open", confirm=True)
+        self.tool("storage_create_zone")("A", "Slots", 30, sides=2, numbering="In order", confirm=True)
         self.tool("storage_add_positions")("A", 3, confirm=True)
         self.tool("storage_set_disabled")(False, location="A2", confirm=True)
         self.assertEqual([c[2] for c in self.client.calls], [
-            {"zone_name": "Rack 1", "kind": "Open", "count": 1, "company": None},
+            {"zone_name": "Rack 1", "kind": "Open", "count": 1, "company": None, "sides": 0,
+             "numbering": "Odd / even"},
+            {"zone_name": "A", "kind": "Slots", "count": 30, "company": None, "sides": 2,
+             "numbering": "In order"},
             {"zone": "A", "count": 3},
             {"disabled": 0, "zone": None, "location": "A2"},
         ])
