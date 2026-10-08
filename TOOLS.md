@@ -31,7 +31,7 @@
 | 看寄售在途/结算队列 | `consignment_queue` / `consignment_dealer_orders` | 寄售全套见第 5 节 |
 | 财务/税务报表(销售、总账、三表、税负、AR/AP) | `sales_report` / `gl_entries` / `financial_statement` / `tax_liability` / `ar_ap_summary` | CPA 报表工具包,全模式可用,见第 10 节 |
 | 搜 RSR 批发目录（不是本店库存） | `rsr_catalog_search` | 按关键词/UPC/RSR 编号/厂商编号搜 |
-| 跑任意报表 | `frappe_run_report` | 报表名：`Sales Report`（营收+毛利；filters 传 `view`="Order"/"Order Detail"/"Product" 切三种视图，默认 Order，返回含 report_summary 卡片）、`Pending 4473 Orders`（卡在 4473 的单）、`Open Special Orders`（特殊订货看板）、`Pending Transfer Pickups`（待取的转入枪） |
+| 跑任意报表 | `frappe_run_report` | 报表名：`Sales Report`（营收+毛利；filters 传 `view`="Order"/"Order Detail"/"Product" 切三种视图，默认 Order，返回含 report_summary 卡片）、`Pending 4473 Orders`（卡在 4473 的单）、`Pending Transfer Pickups`（待取的转入枪） |
 | 查任何记录 | `frappe_list_documents` / `frappe_get_document` | 万能查询，见第 9 节 |
 
 ## 2. 商品上架 / 下架（WooCommerce，主店 + 经销商门户）
@@ -251,7 +251,6 @@ GunBroker 上一条 listing 就是一把枪。
 | 手动合并卡住的 POS 发票（枪不出库存时的解药） | `ffl_core.api.pos_consolidate.consolidate_pos_invoice_now`（要 confirm） |
 | 核验**客户**的 FFL | `ffl_integrations.atf.ez_check_api.verify_customer_ffl` |
 | 单枪与 FastBound 的字段差异对账 | `ffl_integrations.fastbound.reconcile.compute_serial_fb_diff`（只读）等 reconcile 套件 |
-| 特殊订货 / 定金 | `ffl_core.api.special_order.*` |
 | 个人 trade-in 收枪（payload 的 `payout_method` = Cash/Zelle/Check/ACH，不抵扣信用时必填，成功后记 CASH-PAYOUT 现金分录；`apply_credit` 则走信用不付现；**要 confirm**） | `ffl_core.api.trade_in.create_trade_in_intake` |
 | 修已入册枪的成本（`payout_was_different=1` 才会按差额记付款分录；**要 confirm**） | `ffl_core.api.cost_correction.correct_serial_cost`（先 `list_item_serials_for_cost` 查） |
 | 安全删除 Item（保留枪支审计链） | `ffl_core.api.item_admin.preview_delete` → `force_delete`（要 confirm） |
