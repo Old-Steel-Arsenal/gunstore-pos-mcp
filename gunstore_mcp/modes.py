@@ -101,7 +101,6 @@ CPA_SETTINGS_READ_BLOCKLIST: frozenset[str] = frozenset({
     "RSR Settings",
     "Payroc Settings",
     "WooCommerce Settings",
-    "Dealer WooCommerce Settings",
     "ShipStation Settings",
     # Holds the GunBroker DevKey and the seller account password. Reading it has
     # no accounting purpose, and Password masking is a framework behaviour rather

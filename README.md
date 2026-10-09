@@ -129,7 +129,7 @@ claude mcp add gunstore-pos-cpa --scope user \
 ### Curated
 | Tool | Purpose |
 |---|---|
-| `get_settings` / `update_settings` | `ffl` \| `fastbound` \| `rsr` \| `payroc` \| `woocommerce` \| `dealer` \| `shipstation` \| `gunbroker` \| `sports_south` \| `data_service` |
+| `get_settings` / `update_settings` | `ffl` \| `fastbound` \| `rsr` \| `payroc` \| `woocommerce` \| `shipstation` \| `gunbroker` \| `sports_south` \| `data_service` |
 | `find_item` / `item_stock` / `available_serials` | typeahead item search / stock per item / in-stock serials + per-gun prices |
 | `firearms_in_stock` | the Firearms In Stock report |
 | `receive_goods` | Purchase Receipt + FFL acquisitions + FastBound push (`confirm`); a paid purchase from a private seller (`acquisition_source` "Individual", type blank / Purchase / Individual) needs `seller_payment_method` (Cash / Zelle / Check / ACH) + `seller_payment_reference` unless Cash (gunstore-pos #705 on) |
@@ -139,7 +139,7 @@ claude mcp add gunstore-pos-cpa --scope user \
 | `promote_to_item` / `backfill_from_rsr` | RSR catalog row → sellable Item / backfill Item fields (`confirm`) |
 | `fastbound_test_connection` / `push_serial_to_fastbound` / `boundbook_reconcile` | FB probe / per-gun correction push (`confirm`) / bound-book reconcile (apply needs `confirm`) |
 | `atf_verify_ffl` / `verify_supplier_ffl` / `reverify_all_ffls` | ATF eZ-Check verifies (`confirm`) |
-| `woo_test_connection` / `woo_push_item` / `woo_delist_item` / `woo_reconcile` | store probe / list / delist / reconcile an Item — all take `site: retail\|dealer` (writes need `confirm`) |
+| `woo_test_connection` / `woo_push_item` / `woo_delist_item` / `woo_reconcile` | store probe / list / delist / reconcile an Item — all take `site: retail` (the only store; writes need `confirm`) |
 | `woo_push_serial` / `woo_delist_serial` | list / delist ONE gun (SKU `item_code::serial`; `site`; `confirm`) |
 | `set_serial_title` | per-gun Woo listing title (writes `Serial No.item_name`; takes effect on next push) |
 | **GunBroker channel** | *the environment, credential and money fields of `GunBroker Settings` are refused on every write path — `update_settings`, `frappe_update_document`, `frappe_create_document` and `frappe_run_method`'s field setters (method names matching `set_value`/`db_set`/`save_doc`-alike, `safety._SETTER_METHOD`), enforced by a test over the whole registered surface — all four tool modules the server registers. Sandbox vs live is a Desk change, not a tool call. The 3 writes below need `GUNSTORE_MCP_GUNBROKER_ACTIONS=1` to be registered at all* |

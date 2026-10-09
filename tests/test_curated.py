@@ -287,13 +287,15 @@ class CuratedTools(unittest.TestCase):
 		self.assertEqual(self._last()[:3],
 			("update_document", "WooCommerce Settings", "WooCommerce Settings"))
 
-	def test_get_settings_shipstation_and_dealer(self):
+	def test_get_settings_shipstation_and_no_dealer_area(self):
 		self.tools["get_settings"]("shipstation")
 		self.assertEqual(self._last(), (
 			"get_document", "ShipStation Settings", "ShipStation Settings"))
-		self.tools["get_settings"]("dealer")
-		self.assertEqual(self._last(), (
-			"get_document", "Dealer WooCommerce Settings", "Dealer WooCommerce Settings"))
+		n = len(self.client.calls)
+		for tool, args in (("get_settings", ("dealer",)), ("update_settings", ("dealer", {"enabled": 1}))):
+			with self.assertRaises(ValueError):
+				self.tools[tool](*args)                    # the dealer web shop is gone (POS 1.11.0)
+		self.assertEqual(len(self.client.calls), n)        # nothing was sent
 
 	# ---------------------------------------------------- F: Woo multi-site
 
@@ -306,22 +308,31 @@ class CuratedTools(unittest.TestCase):
 			{"item_code": "ITEM", "site": "retail"},
 		))
 
-	def test_woo_push_item_dealer_site(self):
-		self.tools["woo_push_item"]("ITEM", site="dealer", confirm=True)
-		self.assertEqual(self._last()[2], {"item_code": "ITEM", "site": "dealer"})
+	def test_woo_tools_offer_the_retail_site_only(self):
+		"""The six woo_* tools advertise site as the single value "retail" — the
+		schema FastMCP derives from the signature — so a client cannot pick "dealer"."""
+		import inspect
+		from typing import Literal, get_args, get_type_hints
+		names = ("woo_test_connection", "woo_push_item", "woo_delist_item",
+			"woo_reconcile", "woo_push_serial", "woo_delist_serial")
+		for name in names:
+			hint = get_type_hints(self.tools[name])["site"]
+			self.assertIs(hint.__origin__, Literal, name)
+			self.assertEqual(get_args(hint), ("retail",), name)
+			self.assertEqual(inspect.signature(self.tools[name]).parameters["site"].default, "retail")
 
 	def test_woo_delist_item_site(self):
-		self.tools["woo_delist_item"]("ITEM", site="dealer", confirm=True)
+		self.tools["woo_delist_item"]("ITEM", confirm=True)
 		self.assertEqual(self._last(), (
 			"call_method", "ffl_woo_sync.woocommerce.client_api.delist_item_now",
-			{"item_code": "ITEM", "site": "dealer"},
+			{"item_code": "ITEM", "site": "retail"},
 		))
 
 	def test_woo_reconcile_site(self):
-		self.tools["woo_reconcile"]("ITEM", site="dealer", confirm=True)
+		self.tools["woo_reconcile"]("ITEM", confirm=True)
 		self.assertEqual(self._last(), (
 			"call_method", "ffl_woo_sync.woocommerce.client_api.reconcile_now",
-			{"item_code": "ITEM", "site": "dealer"},
+			{"item_code": "ITEM", "site": "retail"},
 		))
 
 	def test_woo_test_connection_site(self):
@@ -330,8 +341,6 @@ class CuratedTools(unittest.TestCase):
 			"call_method", "ffl_woo_sync.woocommerce.client_api.test_connection",
 			{"site": "retail"},
 		))
-		self.tools["woo_test_connection"](site="dealer")
-		self.assertEqual(self._last()[2], {"site": "dealer"})
 
 	def test_woo_push_serial(self):
 		with self.assertRaises(WriteRefused):
@@ -345,10 +354,10 @@ class CuratedTools(unittest.TestCase):
 	def test_woo_delist_serial(self):
 		with self.assertRaises(WriteRefused):
 			self.tools["woo_delist_serial"]("SN1")
-		self.tools["woo_delist_serial"]("SN1", site="dealer", confirm=True)
+		self.tools["woo_delist_serial"]("SN1", confirm=True)
 		self.assertEqual(self._last(), (
 			"call_method", "ffl_woo_sync.woocommerce.client_api.delist_serial_now",
-			{"serial_no": "SN1", "site": "dealer"},
+			{"serial_no": "SN1", "site": "retail"},
 		))
 
 	# ------------------------------------------------- F2: GunBroker channel

@@ -28,7 +28,7 @@ from .frappe_client import get_client
 # separately so the unseparated `devkey` is covered too, the way `apikey` is.
 #
 # Verified against every Password field in the platform: before this arm,
-# `consumer_key` (WooCommerce Settings AND Dealer WooCommerce Settings) already
+# `consumer_key` (WooCommerce Settings) already
 # escaped the backstop — GunBroker's DevKey was not the first gap, only the one
 # that got noticed.
 _CREDENTIAL_NAME = re.compile(

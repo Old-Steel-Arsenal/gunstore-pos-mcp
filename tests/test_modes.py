@@ -98,7 +98,7 @@ EXPECTED_METHOD_ALLOWLIST = {
 
 SETTINGS_DOCTYPES = {
 	"FFL Settings", "FastBound Settings", "RSR Settings", "Payroc Settings",
-	"WooCommerce Settings", "Dealer WooCommerce Settings", "ShipStation Settings",
+	"WooCommerce Settings", "ShipStation Settings",
 	# PR-4a: holds the GunBroker DevKey + seller password (Password fields), and
 	# has no accounting purpose — same reasoning as every other row here.
 	"GunBroker Settings",
