@@ -1,359 +1,422 @@
-# GunStore-POS MCP 工具速查（中文）
+# GunStore-POS MCP: tool reference
 
-> 这份文档按「你想干什么」组织，方便直接对 AI 助手说人话。每个工具标注了
-> **读 / 写**、是否需要 `confirm=true`，以及关键参数。英文简表见 README.md。
+This reference is organised by what you want to do. Each tool is marked read or write,
+says whether it needs `confirm=true`, and lists the key parameters. The README has the
+setup instructions and a compact tool table. The source under `gunstore_mcp/tools/` is
+the authority on exact signatures.
 
-## ⚠️ 先读我：三件事
+## Read this first
 
-1. **这个 MCP 连的是生产环境**（pos.oldsteelarsenal.com + 线上商店）。所有"写"
-   都是真实业务操作：上架的枪顾客立刻能买、dispose 会登真实枪支账册。**开发/测试
-   一律不用它**，用本地 dev 环境。
-2. **confirm 机制**：有后果的操作第一次调用会被拒绝，AI 需要带 `confirm=true` 重调。
-   这是给你一个反悔的机会——AI 复述要做的事之后你确认了才会真执行。
-3. **凭据永远过不了 MCP**：所有密码/API key 字段写入时自动剥除，读也读不到。
-   改密钥去 Desk 后台（My Settings / 各 Settings 页）。
+1. **Writes are real.** The server acts on whatever POS site `FRAPPE_BASE_URL` points at.
+   Listing a gun makes it purchasable, and a disposition writes to the firearms
+   acquisition and disposition book. Try new workflows against a dev site first.
+2. **The `confirm` mechanism.** An operation with consequences is refused on the first call
+   and succeeds only when the call is repeated with `confirm=true`. An assistant should
+   restate what it is about to do and get the user's agreement before repeating the call.
+3. **Credentials never travel through this MCP.** Password and API-key fields are stripped
+   on write and are never returned on read. Change secrets in the POS Desk (My Settings,
+   or the relevant Settings page).
 
-`site` 参数：凡是 Woo 相关工具都可选 `site="retail"`（主店 oldsteelarsenal.com，
-默认）或 `site="dealer"`（经销商门户）。
+Every Woo-related tool takes an optional `site` argument: `retail` (the default) or
+`dealer` (a second, dealer-facing storefront).
 
 ---
 
-## 1. 查东西（全部只读，随便用）
+## 1. Look things up (all read-only)
 
-| 你想… | 工具 | 说明 |
+| Task | Tool | Notes |
 |---|---|---|
-| 按名字/条码/SKU 找商品 | `find_item` | 输入关键词，返回匹配的 Item |
-| 查某商品还剩几个 | `item_stock` | 可一次查多个 item_code |
-| 查某型号在库的每把枪和各自售价 | `available_serials` | 返回 {型号: [{serial, sell_price…}]}，便宜的在前。**默认剔除寄售在外/暂扣的枪**（和 POS 拣枪口径一致）；盘点要完整清单传 `exclude_unavailable=false` |
-| 看全部在库枪支清单 | `firearms_in_stock` | 报表：序列号/厂商/型号/口径/仓库/来源 + FastBound 链接；可按仓库或厂商过滤 |
-| 看待处理的柜台/经销商订单 | `pending_orders` | Pending Order 队列：还没 dispose、没收够钱、或还没推 ShipStation 的单子。**寄售出库不在这里**——寄售有独立队列，见第 5 节 |
-| 看待发货的网店订单 | `pending_web_orders` | 已付款、等 dispose 的 Woo 订单 |
-| 看寄售在途/结算队列 | `consignment_queue` / `consignment_dealer_orders` | 寄售全套见第 5 节 |
-| 财务/税务报表(销售、总账、三表、税负、AR/AP) | `sales_report` / `gl_entries` / `financial_statement` / `tax_liability` / `ar_ap_summary` | CPA 报表工具包,全模式可用,见第 10 节 |
-| 搜 RSR 批发目录（不是本店库存） | `rsr_catalog_search` | 按关键词/UPC/RSR 编号/厂商编号搜 |
-| 跑任意报表 | `frappe_run_report` | 报表名：`Sales Report`（营收+毛利；filters 传 `view`="Order"/"Order Detail"/"Product" 切三种视图，默认 Order，返回含 report_summary 卡片）、`Pending 4473 Orders`（卡在 4473 的单）、`Pending Transfer Pickups`（待取的转入枪） |
-| 查任何记录 | `frappe_list_documents` / `frappe_get_document` | 万能查询，见第 9 节 |
+| Find an item by name, barcode or SKU | `find_item` | Keyword in, matching Items out |
+| Stock for one or more items | `item_stock` | Accepts several item codes |
+| Every in-stock gun of a model, with prices | `available_serials` | `{model: [{serial, sell_price, ...}]}`, cheapest first. Consigned-out and held guns are excluded by default (same rule the counter uses when picking a gun); pass `exclude_unavailable=false` for the full list |
+| All firearms in stock | `firearms_in_stock` | Serial, manufacturer, model, caliber, warehouse, source, bound-book link; filter by warehouse or manufacturer |
+| Pending counter and dealer orders | `pending_orders` | Orders not yet disposed, not fully paid, or not yet pushed to ShipStation. Consignments are not here; they have their own queue (section 5) |
+| Paid web orders waiting for disposition | `pending_web_orders` | Paid Woo orders awaiting `dispose_web_order` |
+| Consignment queues | `consignment_queue`, `consignment_dealer_orders` | See section 5 |
+| Financial and tax reports | `sales_report`, `gl_entries`, `financial_statement`, `tax_liability`, `ar_ap_summary`, `inventory_receipts`, `payroc_transactions` | Accountant report kit, available in every mode; see section 10 |
+| Search the RSR wholesale catalog | `rsr_catalog_search` | By keyword, UPC, RSR stock number or manufacturer part number. This is not store inventory |
+| Run any report | `frappe_run_report` | e.g. `Sales Report` (revenue and margin; `filters.view` is `Order`, `Order Detail` or `Product`), `Pending 4473 Orders`, `Pending Transfer Pickups` |
+| Read any record | `frappe_list_documents`, `frappe_get_document` | General-purpose queries; see section 9 |
 
-## 2. 商品上架 / 下架（WooCommerce，主店 + 经销商门户）
+## 2. Listing and delisting on WooCommerce
 
-| 你想… | 工具 | confirm | 说明 |
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 上架/更新**一把枪** | `woo_push_serial` | ✅ | 按序列号推，SKU = `型号::序列号`。**只动这一把**——日常首选 |
-| 下架**一把枪** | `woo_delist_serial` | ✅ | 商品转草稿 + 库存清零，立刻从店里消失 |
-| 上架/更新一个**型号的全部在库枪**（或普通商品） | `woo_push_item` | ✅ | 注意：会把该型号下**每一把** Active 的枪都推一遍 |
-| 下架整个型号 | `woo_delist_item` | ✅ | |
-| 首次整体上架（型号 + 全部序列号一次推齐） | `woo_reconcile` | ✅ | |
-| 给一把枪起独立的商品标题 | `set_serial_title` | — | 写 `Serial No.item_name`；**要再 push 一次才生效** |
-| 测试商店连接 | `woo_test_connection` | — | 只读探活 |
+| List or update **one gun** | `woo_push_serial` | yes | Pushed by serial number; SKU is `item_code::serial`. Touches only that gun, so it is the everyday choice |
+| Delist **one gun** | `woo_delist_serial` | yes | Product becomes a draft and stock goes to zero |
+| List or update **every in-stock gun of a model** (or a plain product) | `woo_push_item` | yes | Pushes **every** Active serial under the model |
+| Delist a whole model | `woo_delist_item` | yes | |
+| First full listing (model plus all serials) | `woo_reconcile` | yes | |
+| Give one gun its own listing title | `set_serial_title` | no | Writes `Serial No.item_name`; takes effect on the next push |
+| Check the store connection | `woo_test_connection` | no | Read-only probe |
 
-以上全部支持 `site="dealer"` 推到经销商门户。
+**Photos.** `upload_attachment` uploads one file at a time. Product images meant for the
+storefront must be uploaded with `is_private=false`. The server does not resize images; resize
+large photos before uploading, because oversized originals can make the push time out.
 
-**传照片**：单张可用 `upload_attachment`（见第 8 节）；**批量传图+描述+建相册请走
-firearm-listing-import 技能的脚本**——它会先把图缩到 2000px（原图太大会把 Woo
-推送搞超时），MCP 不做 resize。
+## 2b. GunBroker (a third sales channel)
 
-## 2b. 上架 / 下架（GunBroker —— 第三销售渠道）
+Fixed-price Buy Now listings, priced from `Serial No.sell_price`. Listings are per gun;
+there is no "push a whole model" operation.
 
-固定价 Buy Now，价取 `Serial No.sell_price`。**只按枪操作，没有"整型号推"这回事**——
-GunBroker 上一条 listing 就是一把枪。
+2 read-only GunBroker tools (`gb_test_connection` and `gb_listing_status`) are always registered.
+The three write actions (`gb_push_serial`, `gb_end_listing`, `gb_pull_orders`) are **not
+registered at all** unless the server is started with `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`.
+`confirm=` stops a slip of the finger, but it cannot stop an agent that has talked itself
+into confirming. A tool that is absent from the list cannot be talked into anything.
 
-**默认只有查的那两个在**。GunBroker 只读工具 2 个（`gb_test_connection` / `gb_listing_status`）
-永远注册；GunBroker 写工具 3 个（`gb_push_serial` / `gb_end_listing` / `gb_pull_orders`）
-**默认物理不存在**，要用得先 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1` 启动（和分销商队列动作同一套姿态）。
-理由不是形式主义：`confirm=` 挡得住手滑，挡不住一个"自己想明白了所以该确认"的 agent，
-而用户级实例真的指向 prod。**列表里不存在的工具没法被说服。**
+Push, end and pull-orders share one switch on purpose. An instance that can list a gun but
+cannot end the listing is in the most dangerous position: the gun sells at the counter, the
+assistant has no tool to end the listing, and a second buyer can still buy it.
+`gb_pull_orders` sits behind the same switch because importing an order creates POS
+documents and reserves the gun.
 
-> **部署前置(lead 裁决,已进 G5 部署清单)**：任何要用 GunBroker 上架/结束的 POS MCP 实例
-> **必须**设 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`。**推、结束、拉订单是同一个开关**——
-> 别只想着开上架:**能上架却不能结束的实例,正好卡在最危险的位置上**(枪在柜台卖了,
-> 助手回"我没有这个工具",listing 还挂在 GunBroker 上等着被第二个买家买走)。
-> `gb_pull_orders` 搭在同一个闸上:定时轮询本来就在跑,这个工具只是"现在就跑一轮",
-> 但**导进来一张订单会建 POS 单据并预留那把枪**,所以它跟着写面走而不是跟着只读面走。
-
-| 你想… | 工具 | confirm | 说明 |
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 上架**一把枪** | `gb_push_serial` | ✅（且需开闸） | 守卫拒绝会返回 `{"ok": false, "skipped": ..., "message": ...}`——**这是正常回答不是报错**，照 message 处理，重试不会变 |
-| 结束**一把枪**的 listing | `gb_end_listing` | ✅（且需开闸） | **看 `confirmed` 不是看 `ok`**：`confirmed=false` 一定带 `pending_manual` + `gb_url`，意思是**这把枪在 GunBroker 上还能被买走**，要人去站点上手动结束 |
-| 看一把枪的上架状态 | `gb_listing_status` | — | 只读；`state` 是 POS 视角（7 态），`remote` 是 GunBroker 当下的说法 |
-| 测试 GunBroker 连接 | `gb_test_connection` | — | 只读探活；**回包里的 `sandbox` 字段说明刚才打的是哪个环境** |
-| **立刻拉一轮 GunBroker 订单** | `gb_pull_orders` | ✅（且需开闸） | 无参数。回的是**回执不是结果**：`{"queued": true}` 只表示任务已入队(long 队列、与定时轮询同 job 去重,所以撞上正在跑的那轮是"加入"不是"再起一轮"),**不带任何"拉了几单"的计数**——别照着它回报"订单已同步",去看 GunBroker Order 列表和 Error Log。想改拉取起点(`orders_since_override`)只能去 Desk：把水位往回拨会重新导入旧单、重新预留枪 |
+| List **one gun** | `gb_push_serial` | yes (and switch on) | A guard refusal returns `{"ok": false, "skipped": ..., "message": ...}`. That is a normal answer, not an error; act on the message, as retrying will not change it |
+| End **one gun's** listing | `gb_end_listing` | yes (and switch on) | Check `confirmed`, not `ok`. `confirmed=false` always comes with `pending_manual` and `gb_url`, meaning the gun can still be bought on GunBroker and someone must end it on the site |
+| Listing status of one gun | `gb_listing_status` | no | `state` is the POS view (seven states); `remote` is what GunBroker reports right now |
+| Check the GunBroker connection | `gb_test_connection` | no | The `sandbox` field in the reply says which environment answered |
+| Run an order poll now | `gb_pull_orders` | yes (and switch on) | No arguments. The reply is a receipt, not a result: `{"queued": true}` only says the job was queued (a poll already running is joined, not duplicated) and carries no order count. Look at the GunBroker Order list and the Error Log for the outcome. Moving the poll's start point (`orders_since_override`) is only possible in the Desk, because winding it back re-imports old orders and re-reserves guns |
 
-**沙盒还是生产，这里选不了**：由目标 POS 站点的 `GunBroker Settings.sandbox_mode` 唯一决定，
-而这个字段**经 MCP 的任何一条写路都写不进去**——`enabled` / `sandbox_mode` /
-`base_url_override` / `dev_key` / `sandbox_dev_key` / `username` / `password` /
-`end_strategy` / `check_deposit_account` / `card_checkout_enabled` 这十个键，带上任何一个，
-`update_settings` / `frappe_update_document` / `frappe_create_document` 以及
-`frappe_run_method` 的字段 setter **整个调用直接拒绝**（不是剥掉那个键继续写——
-半个生效比全不生效更坏）。这些只能在 desk UI 里由人改。
+**Sandbox versus live cannot be chosen from here.** It is decided solely by
+`GunBroker Settings.sandbox_mode` on the target POS site, and that field cannot be written
+through any MCP path. The ten keys `enabled`, `sandbox_mode`, `base_url_override`,
+`dev_key`, `sandbox_dev_key`, `username`, `password`, `end_strategy`,
+`check_deposit_account` and `card_checkout_enabled` cause the **whole call to be refused**
+when any of them is present in `update_settings`, `frappe_update_document`,
+`frappe_create_document` or the field setters reachable through `frappe_run_method`. The
+call is not partially applied, because a half-applied write is worse than none. These
+fields are changed by a person in the Desk. `tests/test_never_writes_surface.py` feeds the
+forbidden keys to every registered tool and statically checks that any new tool that
+writes a document body goes through the same guard.
 
-「任何一条写路」是有测试兜着的说法,不是口号:`tests/test_never_writes_surface.py`
-遍历已注册工具逐个喂禁写键,并且**静态断言任何写文档体的新工具都必须过这道守卫**。
-上一版这句话在只堵住一条路的时候就已经这么写了——**那比不写更糟,因为人会照着它行动**。
+All GunBroker tools go through whitelisted POS methods; the MCP never talks to GunBroker
+directly.
 
-工具本身也一律经 POS 的 whitelisted 方法走，MCP 不直连 GunBroker。
+**A local site is not necessarily a sandbox.** Pointing the MCP at `dev.localhost:8000`
+gives you that site's `sandbox_mode`. A dev site configured with live credentials can
+create real listings. Check the `sandbox` field of `gb_test_connection` before the first
+`gb_push_serial`.
 
-**「本地站」不等于「沙盒」**。把 MCP 指向 `dev.localhost:8000`，你拿到的是**那个站点**的
-`sandbox_mode`——一个填了生产凭据的本地 dev 站照样能挂出真 listing。唯一可靠的确认方式是
-`gb_test_connection` 回包里的 `sandbox` 字段，`gb_push_serial` 之前先看一眼。
+**Roles differ.** `gb_test_connection` and `gb_pull_orders` need the POS `SYSTEM_ROLES`;
+the other three need only `STOCK_ROLES`. An API user with stock roles only will get a 403
+on just those two tools. Since the connection probe is the usual first call, a 403 there
+usually means a role gap, not a broken connection.
 
-**角色不同**：`gb_test_connection` 与 `gb_pull_orders` 要 POS 上的 `SYSTEM_ROLES`，
-另外三个（`gb_push_serial` / `gb_end_listing` / `gb_listing_status`）只要 `STOCK_ROLES`。
-只有库存类角色的 API 用户会**单单在这两个工具上吃 403**——而探活恰好是文档教你第一个调的，
-看到 403 先想这件事，别以为是连接坏了。
+Re-listing a gun that was ended by hand is not offered through the MCP; use the Serial No form,
+where the reason it was ended is visible.
 
-**手动重挂**（人工结束过的枪要再上架）不在 MCP 面上：走 Serial No 表单，那里能看见
-当初为什么被结束。
+## 3. Receiving goods and adjusting stock
 
-## 3. 收货入库 / 库存调整
-
-| 你想… | 工具 | confirm | 说明 |
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 正式收货（含枪支） | `receive_goods` | ✅ | 建并提交 Purchase Receipt；枪支自动逐把建 FFL Acquisition 并推 FastBound。枪**必须**走这个，不能用 add_stock。**向个人卖家付钱买的货**（`acquisition_source="Individual"`，`acquisition_type` 为空 / `Purchase` / `Individual`，有成本；gunstore-pos #705 起）payload 必须带 `seller_payment_method`（`Cash` / `Zelle` / `Check` / `ACH`），非 Cash 还要 `seller_payment_reference`（支票号 / Zelle 确认号 / ACH 参考号）——POS 随收货同一事务记这笔付款（Cash 出抽屉，其余出银行），返回 `seller_payment`；缺了就整单拒收。Consignment / Gunsmithing / 转移 / 经销商进货不付款、不用带 |
-| 给普通商品加库存 | `add_stock` | ✅ | 弹药/配件等非序列号商品 |
-| 盘点后把数量改成实数 | `set_stock` | ✅ | 会留盘点原因的审计记录 |
-| 标记/取消"待枪匠维修" | `toggle_service_need` | ✅ | 同步开/关枪匠 ToDo |
-| RSR 目录商品转成本店在售 Item | `promote_to_item` | ✅ | 厂商/型号/口径/图自动带入 |
-| 用 RSR 数据补全已有 Item 的空字段 | `backfill_from_rsr` | ✅ | 只填空，不覆盖已有值 |
+| Receive goods (including firearms) | `receive_goods` | yes | Creates and submits a Purchase Receipt; each firearm gets an FFL Acquisition and is pushed to FastBound. Firearms must come in this way, not through `add_stock`. A paid purchase from a private seller (`acquisition_source="Individual"` with a blank, `Purchase` or `Individual` type and a cost) needs `seller_payment_method` (`Cash`, `Zelle`, `Check` or `ACH`) plus `seller_payment_reference` unless Cash. The POS books the payment in the same transaction and returns `seller_payment`; without those fields the receipt is refused. Consignment, gunsmithing, transfers and dealer purchases take no payment |
+| Add stock for a plain product | `add_stock` | yes | Ammunition, accessories and other non-serialized items |
+| Set a counted quantity | `set_stock` | yes | Leaves an audit record with the reason |
+| Flag or clear "needs gunsmith" | `toggle_service_need` | yes | Opens or closes the gunsmith ToDo |
+| Turn an RSR catalog row into a sellable Item | `promote_to_item` | yes | Manufacturer, model, caliber and image carried over |
+| Fill an Item's empty fields from RSR data | `backfill_from_rsr` | yes | Fills blanks only; never overwrites |
 
-## 3b. 盘点 / 现金抽屉 / 库位（POS 1.5.0-beta.15，`tools/shopfloor.py`）
+## 3b. Stocktake, cash drawer, storage locations (`tools/shopfloor.py`)
 
-**所有写都要 `confirm=true`**（owner 拍板：全部开放，含钱和库存），但**没有**注册期开关——和 §2b 的 GunBroker 闸有意不同：这些是 POS 页面上同角色员工的日常动作，POS 逐次校验角色，远程连接器逐次写 Audit Log，且大多可撤。**真正撤不回的两处**：`cash_drawer_close_day`（关掉的 POS 班次不会因撤销而重开）和 `inventory_count_finalize`（已过账的 Stock Reconciliation 只能去 Desk 取消）。
+Every write needs `confirm=true`. There is deliberately **no** registration-time switch,
+unlike the GunBroker and distributor actions: these are the routine actions the POS pages
+offer to staff with the matching roles, the POS checks the role on each call, the remote
+connector writes an audit row for each call, and most of them can be undone. Two actions
+cannot be reversed: `cash_drawer_close_day` (POS shifts it closes are not reopened by an
+undo) and `inventory_count_finalize` (a posted Stock Reconciliation can only be cancelled in
+the Desk).
 
-### 盘点（Inventory Count）
-盘点**只报告枪、从不调整枪**：无 disposition、不调 FastBound；丢枪要人去查（可能要报 ATF）。只有非序列号商品会被 finalize 调整。
+### Inventory count
 
-| 你想… | 工具 | confirm | 说明 |
+A count only **reports** firearms and never adjusts them (no disposition, no bound-book
+change); a missing gun has to be investigated. Only non-serialized items are adjusted at
+finalize.
+
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 看有哪些盘点 | `inventory_counts` | — | 最近 50 个，含状态/范围/扫描数；cpa 可用 |
-| 看一个盘点的进度 | `inventory_count_state` | — | 已扫的枪/数量/未知条码 + 应有清单；`counts_only=true` 只要扫描 |
-| 看差异 | `inventory_count_variance` | — | `serial.{missing,unexpected,unknown}` 枪只报告；`items[]` 是 finalize 会调的；`open_register_sales` 非空的行要等收银班次关了才能调；cpa 可用 |
-| 开始盘点 | `inventory_count_create` | ✅ | 不传范围=全店；仓库必须是本公司自有库存仓 |
-| 扫一下 | `inventory_count_scan` | ✅ | 序列号（枪，一把一次）或 UPC（+1，需 warehouse）；`result=error` 表示什么都没存（是回复不是异常）；回包 `entry` 给 undo 用 |
-| 手输数量 | `inventory_count_set_qty` | ✅ | 无条码商品；按差值存，不覆盖别的设备的扫描；首次输 0 也算盘过 |
-| 手勾/取消一把枪 | `inventory_count_toggle_serial` | ✅ | 标签扫不出时；取消别人的扫描要 Stock Manager |
-| 撤一条扫描 | `inventory_count_undo` | ✅ | 只有本人或 Stock Manager |
-| 作废一个盘点 | `inventory_count_cancel` | ✅ | 不调整任何东西，扫描留档；Stock Manager |
-| **完成盘点** | `inventory_count_finalize` | ✅ | ⚠ 过账**一张** Stock Reconciliation 把非序列号商品调成实数。`item_rows=[{item_code,warehouse}]` 选行；不传=所有有差异的行**除了**没人扫过的（那些只有在列出时才会被写成 0）。先读 variance、和用户确认再调。无扫描/期间已冻结/有未关收银班次都会被拒（不留痕）|
+| List counts | `inventory_counts` | no | Latest 50 with status, scope and scan count; on the cpa surface |
+| Progress of one count | `inventory_count_state` | no | Scanned guns and quantities, unknown barcodes, expected list; `counts_only=true` returns scans only |
+| Variance | `inventory_count_variance` | no | `serial.{missing,unexpected,unknown}` is report-only; `items[]` is what finalize will adjust; rows with `open_register_sales` wait until the register shift closes; on the cpa surface |
+| Start a count | `inventory_count_create` | yes | No scope means the whole store; the warehouse must be one of the company's own stock warehouses |
+| Scan | `inventory_count_scan` | yes | A serial number (one gun, once) or a UPC (+1, needs `warehouse`). `result=error` means nothing was stored (it is a reply, not an exception); the returned `entry` is what undo takes |
+| Type a quantity | `inventory_count_set_qty` | yes | For items without barcodes; stored as a delta so other devices' scans are kept; entering 0 counts as having counted it |
+| Tick or untick a gun by hand | `inventory_count_toggle_serial` | yes | For unreadable labels; removing someone else's scan needs Stock Manager |
+| Undo one scan | `inventory_count_undo` | yes | Own scans, or Stock Manager |
+| Void a count | `inventory_count_cancel` | yes | Adjusts nothing, keeps the scans; Stock Manager |
+| **Finalize** | `inventory_count_finalize` | yes | Posts **one** Stock Reconciliation that sets non-serialized items to the counted quantity. `item_rows=[{item_code, warehouse}]` selects rows; omitted means every row with a variance **except** rows nobody scanned (those become 0 only when explicitly listed). Read the variance and confirm with the user first. Refused, leaving no trace, when there are no scans, the period is frozen or a register shift is open |
 
-### 现金抽屉（Cash Drawer）
-规则见 POS 仓 `docs/cash-drawer.md`。抽屉应有的现金 = Cash 科目余额 + 未合并 POS 发票的现金。
+### Cash drawer
 
-| 你想… | 工具 | confirm | 说明 |
+Expected cash is the Cash account balance plus the cash of unconsolidated POS invoices.
+
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 看今天的抽屉 | `cash_drawer_today` | — | expected、今日/上次关账以来的流水（含 `can_undo`）、阈值、费用上限、可选费用科目 |
-| 预览关账 | `cash_drawer_preview_close` | — | 只算不记：expected / variance / needs_reason / first_count |
-| 看每日关账记录 | `cash_drawer_closes` | — | 默认不含已撤销的；cpa 可用 |
-| 看抽屉流水（存款/从银行取现/费用/卖家付款） | `cash_drawer_entries` | — | 默认只看 Posted；cpa 可用 |
-| 现金流水 Log | `cash_drawer_log(from_date,to_date)` | — | 逐笔现金进出（收银机按每张小票，合并后也拆开）、经手人、单据、逐笔余额、期初/期末、进出合计；默认近 7 天、≤1 年；cpa 可用 |
-| 给会计的周报 | `cash_drawer_weekly(from_date,to_date)` | — | Cash Drawer Weekly 原样透传，末尾有对账校验块（差额必须 0.00、未分类行应为空）；≤400 天；cpa 可用 |
-| **关账** | `cash_drawer_close_day` | ✅ | ⚠ 清点抽屉、关 POS 班次、记差额分录；**公司首次盘点**改为把账调到实际现金（CASH-CUTOFF）。差额≥设置阈值（默认 $20）必须写 reason。先 preview，把 `expected` 作为 `expected_seen` 传入（账动了会被拒） |
-| 存款/从银行取现/费用 | `cash_drawer_record_entry(kind=deposit\|from_bank\|expense)` | ✅ | 从银行取现任何柜台角色可记、`reference` 可选；费用须 `expense_account`+`memo`，`receipt` 可选（POS 1.8.2 起；更早的 POS 仍要求收据），有上限（默认 $200），只能走允许科目；**不属于该 kind 的参数会被拒绝而不是悄悄丢掉** |
-| 撤销 | `cash_drawer_undo(entry\|close)` | ✅ | 恰给一个：撤某条流水（之后有清点则拒；撤卖家付款要 System Manager）/ 撤**最新**一次清点（班次不重开）。manager |
-| 改旧式卖家付款的方式 | `cash_drawer_record_payout(acquisition, method)` | ✅ | 只改 1.8.4 前旧式卖家付款的方式或重记撤销的那笔；**不能新建**（1.8.4 起卖家随收货单付款）。manager |
+| Today's drawer | `cash_drawer_today` | no | Expected cash, lines since the last close (with `can_undo`), thresholds, expense cap, selectable expense accounts |
+| Preview a close | `cash_drawer_preview_close` | no | Computes without posting: expected, variance, `needs_reason`, `first_count` |
+| Daily closes | `cash_drawer_closes` | no | Excludes undone closes by default; on the cpa surface |
+| Drawer entries | `cash_drawer_entries` | no | Deposits, cash from bank, expenses, seller payments; Posted only by default; on the cpa surface |
+| Cash movement log | `cash_drawer_log(from_date, to_date)` | no | Every cash movement with who handled it, the document, running balance, opening and closing balance and totals; default last 7 days, at most one year; on the cpa surface |
+| Weekly accountant report | `cash_drawer_weekly(from_date, to_date)` | no | The Cash Drawer Weekly report as is, with a reconciliation block (difference must be 0.00, unclassified rows should be empty); at most 400 days; on the cpa surface |
+| **Close the day** | `cash_drawer_close_day` | yes | Counts the drawer, closes POS shifts and books the over/short entry. The company's first count instead adjusts the books to actual cash (CASH-CUTOFF). A difference at or above the configured threshold (default $20) needs a `reason`. Preview first and pass the previewed `expected` as `expected_seen` (refused if the books moved) |
+| Deposit, cash from bank, expense | `cash_drawer_record_entry(kind=deposit\|from_bank\|expense)` | yes | An expense needs `expense_account` and `memo`, has a cap (default $200) and only allowed accounts; `receipt` is optional (POS 1.8.2+). Parameters that do not belong to the kind are rejected, not silently dropped |
+| Undo | `cash_drawer_undo(entry\|close)` | yes | Exactly one argument: undo one entry (refused if a count came after it; undoing a seller payment needs System Manager) or the **latest** close (shifts are not reopened). Manager |
+| Re-book an old-style seller payment | `cash_drawer_record_payout(acquisition, method)` | yes | Changes the method of a pre-1.8.4 seller payment or re-books an undone one; cannot create new ones (since 1.8.4 sellers are paid with the receipt). Manager |
 
-**费用收据规则**（服务端 `_receipt_file`，仅在传了收据时校验）：`receipt` 必须是**同一个 POS 用户 1 天内上传**、仍私有、**未挂在任何文档上**、且没被别的费用用过的文件 URL。**远程连接器没有 `upload_attachment`**，所以用户要在 POS 里自己传图（私有 File，不挂文档），再把 file_url 交给 `cash_drawer_record_entry`；本机 stdio 版可用 `upload_attachment(file_path, is_private=true)`（不要传 doctype/name）。因为服务端本来就接受这种收据，远程面**照常注册** expense，不需要摘掉。收据不合规时由 POS 拒绝，什么都不会入账。
+**Expense receipts.** When a `receipt` is passed, the server requires a file URL that the
+same POS user uploaded within the last day, that is still private, that is attached to no
+document and that no other expense has used. The remote connector has no
+`upload_attachment`, so the user uploads the image in the POS and passes the resulting
+`file_url`. The local stdio server can use `upload_attachment(file_path, is_private=true)`
+without `doctype`/`name`. A receipt that fails validation is rejected by the POS and nothing is booked.
 
-### 库位（Storage Locations）
-**只动追踪层**：不建任何库存/会计单据，不改库存和账。Slots 区=编号槽位（A1,A2…，每槽一把枪）；Open 区=**一个**同名位置（货架/展柜/保险柜，不限量，枪和别的都能放）。
+### Storage locations
 
-| 你想… | 工具 | confirm | 说明 |
+These tools touch only the tracking layer: no stock or accounting documents are created and
+no stock or ledger entries change. A Slots zone has numbered slots (A1, A2, ...), one gun per slot; an
+Open zone is a single named location (shelf, case, safe) with no capacity limit.
+
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 看全店库位图 | `storage_map` | — | 每区每位的内容 + `unassigned` + `plans`（每个房间的平面图：区/墙/门/区块/标签的位置尺寸，单位英尺；只读，在 POS 页面里画）；`zones_only=true` 只列区（便宜） |
-| 看某个位置里有什么 | `storage_location` | — | 位置名即条码 |
-| 某把枪/某商品在哪 | `storage_where` | — | `serial_no` → 它的 `storage_location`；`item_codes` → 各位置数量 + 未入位数量 + `sole` |
-| 还没入位的 / 待确认的 | `storage_unassigned` | — | `to_confirm` = 卖出/发货时没说从哪个位置拿的商品 |
-| 建区 | `storage_create_zone` | ✅ | `kind`=Slots（`count` 个槽）或 Open（一个位置，`count` 忽略）。Slots 可选 `sides`（几面，双面架=2，0/不填=按图上形状；Open 区给了就拒）、`numbering`（`Odd / even` 默认：一面 1,3,5… 对面 2,4,6…；`In order`；只对两面生效）；需 POS ≥ 1.8.5（更老的 POS 会静默忽略这两项）。Stock Manager |
-| 给 Slots 区加槽 | `storage_add_positions` | ✅ | 不重排不删除；Open 区拒绝 |
-| 停用/启用 区或位置 | `storage_set_disabled` | ✅ | 恰给 `zone` 或 `location` 之一；停用要求为空 |
-| 把枪/商品放进位置 | `storage_scan_move` | ✅ | **这一个工具就是「指派序列号」和「放入数量」**（`code`=序列号 / UPC；`qty`）。来源不唯一时什么都不动、`result=choose` 列 `options`，带 `from_location` 重调。`error` 是回复不是异常 |
-| 撤销一次移动 | `storage_undo_move` | ✅ | 仅手动移动、仅一次、且东西还在原处；`ok=false` 是回复 |
-| 确认待确认商品从哪拿的 | `storage_confirm_taken` | ✅ | 这是**唯一**的「从位置里拿走数量」动作；不超过待确认量 |
+| Store map | `storage_map` | no | Contents of each zone and position, `unassigned`, and `plans` (floor plan per room, in feet; drawn in the POS); `zones_only=true` lists zones only (cheap) |
+| Contents of a location | `storage_location` | no | The location name is also its barcode |
+| Where is a gun or item | `storage_where` | no | `serial_no` returns its `storage_location`; `item_codes` returns quantity per location, quantity not yet placed, and `sole` |
+| Unplaced and to-confirm | `storage_unassigned` | no | `to_confirm` lists items sold or shipped without saying which location they came from |
+| Create a zone | `storage_create_zone` | yes | `kind` is Slots (`count` slots) or Open (one location; `count` ignored). Slots zones accept `sides` (2 for a double-sided rack; 0 or omitted follows the drawn shape; rejected for Open zones) and `numbering` (`Odd / even` default, or `In order`; only with two sides). Needs POS 1.8.5 or newer (older POS versions silently ignore both). Stock Manager |
+| Add slots | `storage_add_positions` | yes | Never renumbers or removes; refused for Open zones |
+| Disable or enable a zone or location | `storage_set_disabled` | yes | Exactly one of `zone` or `location`; disabling requires it to be empty |
+| Place a gun or item | `storage_scan_move` | yes | Both "assign a serial number" and "put a quantity in" (`code` is a serial or UPC, plus `qty`). If the source is ambiguous nothing moves and `result=choose` lists `options`; repeat with `from_location`. `error` is a reply, not an exception |
+| Undo a move | `storage_undo_move` | yes | Manual moves only, one step, and only while the thing is still where it was put; `ok=false` is a reply |
+| Confirm where sold units came from | `storage_confirm_taken` | yes | The only action that takes a quantity out of a location; cannot exceed the pending amount |
 
-## 4. 订单 → 收款 → 发货（Pending Order 队列的全部动作）
+## 4. Orders, payment and shipping (the Pending Order queue)
 
-| 你想… | 工具 | confirm | 说明 |
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 给没付清的单子记一笔收款 | `record_payment` | ✅ | 不填金额=收清尾款；Zelle/ACH 必须带 transaction_number;Payroc 开着时 Credit Card(虚拟终端收的)也必须带授权码 |
-| **Dispose** 柜台/经销商订单的枪 | `dispose_order` | ✅ | 逐把登转出 disposition：出库存 + 推 FastBound。没付清或收货方 FFL 无效会被服务器拦下。**动手前先核对 FFL 和序列号** |
-| **Dispose** 网店订单的枪 | `dispose_web_order` | ✅ | 网店单不推 ShipStation（店里的 Woo 插件自己发货） |
-| 把订单推到 ShipStation 买面单 | `push_shipment` | ✅ | 幂等；FFL 无效/没付清会失败保护 |
-| 不走 ShipStation、直接标记已发货 | `mark_shipped_manually` | ✅ | 兜底：面单在别处买的/集成关了。枪没 dispose 完会拒绝 |
-| **取消一张柜台/经销商转移单** | `cancel_order` | ✅（必须带 reason） | 安全级联：撤 disposition→库存回冲→FastBound 删除排队→ShipStation 作废 + 按实收退款（refund_mode/refund_reference）。别手工逐张撤——这个通道就是为此建的 |
-| 测试 ShipStation 连接 | `shipstation_test_connection` | — | 只读探活 |
+| Record a payment on an unpaid order | `record_payment` | yes | Omitting the amount pays the balance. Zelle and ACH need `transaction_number`; when Payroc is enabled a Credit Card payment taken on the virtual terminal needs the authorization code |
+| **Dispose** the guns on a counter or dealer order | `dispose_order` | yes | Books the transfer disposition per gun: stock out and push to FastBound. The server refuses unpaid orders and an invalid receiving FFL. Check the FFL and serial numbers before running it |
+| **Dispose** the guns on a web order | `dispose_web_order` | yes | Web orders are not pushed to ShipStation (the Woo plugin ships them itself) |
+| Push an order to ShipStation for a label | `push_shipment` | yes | Idempotent; fails safe on an invalid FFL or unpaid order |
+| Mark shipped without ShipStation | `mark_shipped_manually` | yes | Fallback when the label was bought elsewhere or the integration is off; refused while guns are not yet disposed |
+| **Cancel a counter or dealer transfer order** | `cancel_order` | yes, with `reason` | Safe cascade: reverses the disposition, reverses stock, queues the bound-book deletion, voids the ShipStation shipment and refunds what was collected (`refund_mode`, `refund_reference`). Use this instead of reversing documents by hand |
+| Check the ShipStation connection | `shipstation_test_connection` | no | Read-only probe |
 
-典型流程：`pending_orders` 看队列 → 差钱先 `record_payment` → `dispose_order` →
-`push_shipment`（网店单则 `pending_web_orders` → `dispose_web_order`，不用推单）。
+Typical flow: `pending_orders` to see the queue, `record_payment` if money is short,
+`dispose_order`, then `push_shipment`. For web orders: `pending_web_orders`, then
+`dispose_web_order` (no shipment push).
 
-## 5. 寄售出库（Consignment Out —— At Dealer 队列全生命周期）
+## 5. Consignment out (the whole At Dealer lifecycle)
 
-寄售有自己的队列和流程，**不走第 4 节的 Pending Order**。
+Consignments have their own queue and flow and do **not** use the Pending Order queue of
+section 4.
 
-| 你想… | 工具 | confirm | 说明 |
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 看在途寄售队列 | `consignment_queue` | — | 每张寄售单一张卡：经销商可寄性、ShipStation 状态、tracking、枪 pills；`include_closed=true` 连历史一起看 |
-| 看能寄给哪些经销商 | `consignment_dealers` | — | 全部 FFL dealer 客户 + shippable/block_reason（FFL 过期会标出来） |
-| 看哪些枪能寄出 | `consignment_serials` | — | 在库 Active 序列号 + 结算价/参考价；不可选的枪也返回并附原因 |
-| 建一张寄售单 | `create_consignment_out` | ✅ | payload：{dealer, lines:[{item_code, serial, cost, msrp}], dispose_now?}。默认存草稿稍后 dispose；`dispose_now=1` 立即 dispose+推 ShipStation（被 FFL 门拦下会降级保留草稿） |
-| **Dispose（发出）寄售单** | `ship_consignment_out` | ✅ | 逐枪登 FFL 转移 disposition + 移库 + 推 FastBound；先验全部行再动任何行，幂等。**动手前核对经销商 FFL 和序列号** |
-| 推到 ShipStation 买面单 | `push_consignment_shipment` | ✅ | 已 dispose 的单才能推；幂等、失败不留脏数据 |
-| 不走 ShipStation、手工记发货 | `mark_consignment_shipped` | ✅ | 可带 tracking_number/carrier，经销商门户会显示 |
-| **改在外寄售枪的价**（At Dealer 行的 Dealer Price/MSRP） | `update_consignment_prices` | ✅ | prices：{行名: {cost 必填>0, msrp 三态——缺键=不动、空=清掉、否则>0}}。只改本张单的行快照，不动 Serial No/Item 主档；结算与门户自动跟随。仅 At Dealer 且未出结算发票的行；整批先验后写。行名从 `consignment_queue` 拿 |
-| 看结算队列（卖掉但没收到钱的） | `consignment_dealer_orders` | — | Sold 但结算发票没出/没付清的行，失败的排最前 |
-| 结算发票失败重试 | `retry_consignment_invoice` | ✅ | 传 Consignment Out Line 名（从结算队列拿） |
-| 收回没卖掉的枪 | `return_consignment_lines` | ✅ | 逐枪登真实 re-acquisition（自动推 FastBound）+ 移库回主仓 |
-| 撤销寄售（整单草稿 / 单行误发） | `cancel_consignment` | ✅（必须带 reason） | 不带 `line` 撤整张草稿；带 `line` 撤一行已发的（"枪其实没离店"，仅结算前可用） |
+| In-transit consignments | `consignment_queue` | no | One card per consignment: dealer eligibility, ShipStation status, tracking, gun pills; `include_closed=true` adds history |
+| Dealers that can receive consignments | `consignment_dealers` | no | All FFL dealer customers with `shippable` and `block_reason` (an expired FFL is flagged) |
+| Guns that can be consigned | `consignment_serials` | no | Active in-stock serials with settlement and reference prices; unselectable guns are returned with the reason |
+| Create a consignment | `create_consignment_out` | yes | Payload `{dealer, lines: [{item_code, serial, cost, msrp}], dispose_now?}`. Saved as a draft by default; `dispose_now=1` disposes and pushes to ShipStation at once (a blocked FFL gate degrades to a kept draft) |
+| **Dispose (ship)** a consignment | `ship_consignment_out` | yes | Books an FFL transfer disposition per gun, moves stock and pushes to FastBound. Validates every line before touching any, idempotent. Check the dealer FFL and serials first |
+| Push to ShipStation | `push_consignment_shipment` | yes | Disposed consignments only; idempotent, leaves nothing half-done on failure |
+| Record shipment manually | `mark_consignment_shipped` | yes | May carry `tracking_number` and `carrier`, which the dealer portal shows |
+| **Change prices** of guns out on consignment | `update_consignment_prices` | yes | `prices: {row_name: {cost (required, >0), msrp}}`; for `msrp`, a missing key leaves it, an empty value clears it, otherwise it must be >0. Changes only this document's line snapshot, not the Serial No or Item master; settlement and the portal follow. Only At Dealer lines with no settlement invoice yet; validated as a batch before any write. Row names come from `consignment_queue` |
+| Settlement queue (sold, not yet paid) | `consignment_dealer_orders` | no | Sold lines whose settlement invoice is missing or unpaid; failures first |
+| Retry a failed settlement invoice | `retry_consignment_invoice` | yes | Takes the Consignment Out Line name from the settlement queue |
+| Take back unsold guns | `return_consignment_lines` | yes | Books a real re-acquisition per gun (pushed to FastBound) and moves stock back to the main warehouse |
+| Cancel a consignment (whole draft or one wrongly shipped line) | `cancel_consignment` | yes, with `reason` | Without `line` it cancels the whole draft; with `line` it cancels one shipped line (the gun never left the store), only before settlement |
 
-**结算是自动的**：经销商在门户点 Mark Sold 后系统自动出结算发票（失败进结算队列重试）。
-**撤结算**：用 `frappe_cancel_document` 取消那张结算 Sales Invoice——取消钩子会对称反开父单（Closed→Shipped），无需也没有专用端点。
-**代经销商签收/报售（mark_received / mark_sold）做不了**：那两个方法绑定门户 dealer 会话身份，管理密钥调用会被拒；见第 11 节。
+**Settlement is automatic.** When the dealer marks a line Sold in the portal, the system
+issues the settlement invoice (a failure lands in the settlement queue for retry). To undo a
+settlement, cancel the settlement Sales Invoice with `frappe_cancel_document`; the cancel
+hook reopens the parent document symmetrically (Closed back to Shipped). There is no
+dedicated endpoint.
 
-## 6. 4473 / 合规（FastBound、ATF）
+**Acting for the dealer is not possible.** `mark_received` and `mark_sold` are bound to the
+portal dealer's session identity and are refused when called with an admin key (section 11).
 
-| 你想… | 工具 | confirm | 说明 |
+## 6. Compliance (FastBound, ATF)
+
+| Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| 给柜台枪支销售发起 4473 | `start_4473` | ✅ | 发票挂起，去 FastBound 填表；参数是 {发票行: 序列号} 映射 |
-| **解卡**：4473 在 FastBound 明明完成了但单子卡住 | `manager_override_4473` | ✅ | 经理权限 + 必须写原因；补出 Retail Sale disposition（标 manual_override 可审计）。**不回推 FastBound**，账册要另行核对 |
-| 发起客户转入枪的 4473（收转移费） | `start_transfer_4473` | ✅ | 服务器端建 $0 枪行 + 转移费行的 POS 发票；费率用 `frappe_run_method` 调 `ffl_core.firearm.get_transfer_config` 查 |
-| 核验一个 FFL 号（eZ-Check） | `atf_verify_ffl` | ✅ | 在线验证并存/更新 ATF FFL Record |
-| 核验某供应商的 FFL | `verify_supplier_ffl` | ✅ | 顺带更新供应商上的核验状态 |
-| 把所有 FFL 供应商重验一遍 | `reverify_all_ffls` | ✅ | 批量 |
-| 修正已入册枪支的厂商/进口商 | `push_serial_to_fastbound` | ✅ | 原地改 FastBound 账册条目 |
-| 对账：FastBound 已 dispose 但本店还显示在库 | `boundbook_reconcile` | 干跑不用；`apply=true` 才要 ✅ | 默认只报告不动库存 |
-| 测试 FastBound 连接 | `fastbound_test_connection` | — | 只读 |
+| Start a 4473 for a counter firearm sale | `start_4473` | yes | The invoice is held while the form is completed in FastBound; the argument maps invoice lines to serial numbers |
+| **Unstick**: the 4473 is complete in FastBound but the order is stuck | `manager_override_4473` | yes | Needs manager rights and a reason; creates the Retail Sale disposition (flagged `manual_override` for audit). Does **not** push back to FastBound, so reconcile the bound book separately |
+| Start a 4473 for a customer transfer in (transfer fee) | `start_transfer_4473` | yes | Server creates the POS invoice with a $0 gun line and a transfer-fee line; look up the fee with `frappe_run_method` on `ffl_core.firearm.get_transfer_config` |
+| Verify an FFL number (eZ Check) | `atf_verify_ffl` | yes | Verifies online and stores or updates the ATF FFL Record |
+| Verify a supplier's FFL | `verify_supplier_ffl` | yes | Also updates the verification status on the supplier |
+| Re-verify every FFL supplier | `reverify_all_ffls` | yes | Bulk |
+| Correct manufacturer or importer on a gun already in the book | `push_serial_to_fastbound` | yes | Edits the FastBound book entry in place |
+| Reconcile: disposed in FastBound but still in stock here | `boundbook_reconcile` | only with `apply=true` | Reports only by default; does not change stock |
+| Check the FastBound connection | `fastbound_test_connection` | no | Read-only |
 
-## 7. 分销商目录
+## 7. Distributor catalogs
 
-目录/库存 feed 由数据服务(Data Service Settings 所指,线上=osa-api)服务端同步(RSR 与 Sports South 都是),POS 侧没有手动同步开关。探活用 `distributor_test_connection`;目录健康看 Desk 的 Catalog Service 页。
+Catalog and stock feeds are synchronised server-side through the data service configured in
+Data Service Settings (for both RSR and Sports South); the POS has no manual sync switch.
+Probe a distributor with `distributor_test_connection`; catalog health is on the Catalog
+Service page in the Desk.
 
-## 8. 设置 & 文件
+## 8. Settings and files
 
-| 你想… | 工具 | 说明 |
+| Task | Tool | Notes |
 |---|---|---|
-| 看某个集成的配置 | `get_settings` | `ffl` \| `fastbound` \| `rsr` \| `payroc` \| `woocommerce` \| `dealer` \| `shipstation` \| `gunbroker` \| `sports_south` \| `data_service` |
-| 改配置（非密钥字段） | `update_settings` | 密码/密钥字段自动剥除，去 Desk 改 |
-| 上传一个本地文件到 POS | `upload_attachment` | 可顺带挂到某条记录（doctype+name）或写进附件字段。默认私有；**要给 Woo 用的商品图必须 `is_private=false`**。批量图片走技能脚本（先 resize） |
+| Read an integration's configuration | `get_settings` | `ffl`, `fastbound`, `rsr`, `payroc`, `woocommerce`, `dealer`, `shipstation`, `gunbroker`, `sports_south` or `data_service` |
+| Change configuration (non-secret fields) | `update_settings` | Password and key fields are stripped; change those in the Desk |
+| Upload a local file to the POS | `upload_attachment` | Can attach to a record (`doctype` + `name`) or fill an Attach field. Private by default; images used on the storefront need `is_private=false`. Local stdio server only |
 
-## 9. 万能后门（`frappe_*` 通用工具）
+## 9. The generic `frappe_*` tools
 
-上面没有的操作，AI 可以用通用工具直达任何数据和白名单方法——**新功能上线当天就能用，
-不用等 MCP 更新**：
+Anything not covered above is reachable through the generic tools, so new POS features are
+usable the day they ship, without an MCP update.
 
-- `frappe_list_documents` / `frappe_get_document` / `frappe_describe_doctype` — 查任何 doctype（先 describe 看字段名）
-- `frappe_create_document` / `frappe_update_document` — 建/改任何记录（凭据字段自动剥除）
-- `frappe_delete_document` / `frappe_submit_document` / `frappe_cancel_document` — 删/提交/作废（都要 confirm）
-- `frappe_run_method` — 按点路径调任何白名单方法；方法名含 delete/cancel/refund/**dispose/push/charge/consolidate/ship/return/receive/sold/settle/onboard** 等危险动词时要 confirm。另有一批**无危险动词但高后果**的方法走显式精确名单(`_ALWAYS_CONFIRM_METHODS`:update_order / update_consignment_line_prices / create_consignment_out / record_payment / create_consignment_invoice_now / add_stock / set_stock / set_customer_tax_exempt / 盘点·现金抽屉·库位的全部写方法 / trade_in.create_trade_in_intake / cost_correction.correct_serial_cost),裸调同样要 confirm——收录判据:记钱、动库存、改合规/税务状态
-- `frappe_run_report` — 跑任何报表
+- `frappe_list_documents`, `frappe_get_document`, `frappe_describe_doctype`: read any doctype (describe first to see field names).
+- `frappe_create_document`, `frappe_update_document`: create or change any record (credential fields stripped).
+- `frappe_delete_document`, `frappe_submit_document`, `frappe_cancel_document`: delete, submit, cancel (all need `confirm`).
+- `frappe_run_method`: call any whitelisted method by dotted path. A method name containing a high-consequence verb (delete, cancel, refund, dispose, push, charge, consolidate, ship, return, receive, sold, settle, onboard and similar) needs `confirm`. A short explicit list of methods without such a verb but with high consequences (`_ALWAYS_CONFIRM_METHODS`: order updates, consignment price and invoice methods, record_payment, stock add/set, tax-exempt changes, every stocktake, cash drawer and storage write, trade-in intake, cost correction) needs `confirm` as well. The test for inclusion is: it books money, moves stock, or changes compliance or tax state.
+- `frappe_run_report`: run any report.
 
-**尚无专用工具、常用点路径备忘**（都走 `frappe_run_method`）：
+Handy dotted paths for operations without a dedicated tool (all via `frappe_run_method`):
 
-| 场景 | 点路径 |
+| Scenario | Dotted path |
 |---|---|
-| 手动合并卡住的 POS 发票（枪不出库存时的解药） | `ffl_core.api.pos_consolidate.consolidate_pos_invoice_now`（要 confirm） |
-| 核验**客户**的 FFL | `ffl_integrations.atf.ez_check_api.verify_customer_ffl` |
-| 单枪与 FastBound 的字段差异对账 | `ffl_integrations.fastbound.reconcile.compute_serial_fb_diff`（只读）等 reconcile 套件 |
-| 个人 trade-in 收枪（payload 的 `payout_method` = Cash/Zelle/Check/ACH，不抵扣信用时必填，成功后记 CASH-PAYOUT 现金分录；`apply_credit` 则走信用不付现；**要 confirm**） | `ffl_core.api.trade_in.create_trade_in_intake` |
-| 修已入册枪的成本（`payout_was_different=1` 才会按差额记付款分录；**要 confirm**） | `ffl_core.api.cost_correction.correct_serial_cost`（先 `list_item_serials_for_cost` 查） |
-| 安全删除 Item（保留枪支审计链） | `ffl_core.api.item_admin.preview_delete` → `force_delete`（要 confirm） |
-| **编辑**一张 pending 柜台单（取消重建式，仅限未 dispose/未推单） | `ffl_core.api.manual_order.update_order`（要 confirm——已列入显式高后果名单 `_ALWAYS_CONFIRM_METHODS`，"update" 虽不在危险动词表，裸调也会被要求确认）内部是 cancel+rebuild 级联——慎用，动手前先复述要改什么 |
-| 查/设客户免税状态 | `ffl_core.api.manual_order.get_customer_tax_status` / `set_customer_tax_exempt` |
-| Woo 部分退款对账（Woo 退了款、POS 侧对齐） | `ffl_woo_sync.woocommerce.refunds.reconcile_web_order_refund`（要 confirm） |
-| 清理指向已删 Woo 商品的 dangling ID | `ffl_woo_sync.woocommerce.dangling.woo_audit_dangling_ids`（`fix=0` 干跑只报告） |
-| 经销商开户（FFL 查询 → 建 Customer+门户账号） | `osa_consignment.api.dealer_onboarding.lookup_ffl` → `onboard_dealer`（要 confirm） |
-| 网单收入发票失败重试 | `ffl_woo_sync.woocommerce.revenue.create_web_invoice_now` |
-| 撤销一笔寄售结算 | `frappe_cancel_document` 取消那张结算 Sales Invoice（钩子自动反开父单） |
+| Manually consolidate a stuck POS invoice (when a gun does not leave stock) | `ffl_core.api.pos_consolidate.consolidate_pos_invoice_now` (confirm) |
+| Verify a **customer's** FFL | `ffl_integrations.atf.ez_check_api.verify_customer_ffl` |
+| Field-level reconcile of one gun against FastBound | `ffl_integrations.fastbound.reconcile.compute_serial_fb_diff` (read-only), plus the rest of the reconcile suite |
+| Individual trade-in intake (`payout_method` is Cash, Zelle, Check or ACH when no credit is applied; `apply_credit` uses store credit instead) | `ffl_core.api.trade_in.create_trade_in_intake` (confirm) |
+| Correct the cost of a gun already in the book (`payout_was_different=1` books the difference as a payment entry) | `ffl_core.api.cost_correction.correct_serial_cost` (look serials up with `list_item_serials_for_cost`; confirm) |
+| Safely delete an Item, keeping the firearm audit chain | `ffl_core.api.item_admin.preview_delete`, then `force_delete` (confirm) |
+| Edit a pending counter order (cancel-and-rebuild, only before disposition or shipment push) | `ffl_core.api.manual_order.update_order` (confirm; it is a cancel-and-rebuild cascade, so state what will change first) |
+| Read or set a customer's tax-exempt status | `ffl_core.api.manual_order.get_customer_tax_status`, `set_customer_tax_exempt` |
+| Reconcile a partial Woo refund into the POS | `ffl_woo_sync.woocommerce.refunds.reconcile_web_order_refund` (confirm) |
+| Clean up IDs pointing at deleted Woo products | `ffl_woo_sync.woocommerce.dangling.woo_audit_dangling_ids` (`fix=0` is a dry run) |
+| Onboard a consignment dealer (FFL lookup, then Customer plus portal account) | `osa_consignment.api.dealer_onboarding.lookup_ffl`, then `onboard_dealer` (confirm) |
+| Retry a failed web-order revenue invoice | `ffl_woo_sync.woocommerce.revenue.create_web_invoice_now` |
+| Undo a consignment settlement | cancel the settlement Sales Invoice with `frappe_cancel_document` |
 
-## 9b. 分销商直发（RSR Direct Connect / Sports South）— `distributor_*` 12 个（只读 8 + 动作 4）
+## 9b. Distributor direct-ship (RSR Direct Connect, Sports South): `distributor_*`, 12 tools (8 read-only + 4 queue actions)
 
-只读 8 + 确认队列动作 4。**不含**直接下单(place)、Settings 写、以及 metabox 清单以外的任何变更面。
+Eight read-only tools and four confirm-gated queue actions. It deliberately excludes
+placing an order directly, writes to Settings, and any mutation surface beyond what is
+listed here. The four queue actions are registered only when
+`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1` is set, and never on the remote connector.
 
-| 工具 | 服务端方法 | 说明 |
+| Tool | Server method | Notes |
 |---|---|---|
-| `distributor_orders` | `distributor.api.list_orders` | 列 Distributor Order,可按 status/分销商筛 |
-| `distributor_route_queue` | `distributor.router.route_queue` | **确认队列**:待确认的 Draft 单 + 被拦下的网单(未付款/买家 FFL 缺失或过期/地址不全)及原因、目的 FFL 到期日。确认任何单之前先读这个 |
-| `distributor_catalog_search` | `distributor.api.search` | 目录 typeahead(本地同步的目录,不是实时库存);不指定分销商时跨所有 enabled 家 |
-| `distributor_test_connection` | `distributor.hub.test_connection` | 探活一家分销商:数据服务目录健康 + 下单 API 凭据(RSR Direct Connect 两账户 / Sports South orders+invoices)。只读;`ok: null` = 未配置/不适用,不是失败 |
-| `distributor_quote` | `distributor.api.quote` | 单品成本/MAP/MSRP/建议价/受限州/封锁旗标;qty 是**缓存目录量**,不保证新鲜度 |
-| `distributor_check_availability` | `distributor.api.check_availability` | **实时**量价二次确认(会打 RSR HTTP,只读) |
-| `distributor_precheck_fds` | `distributor.router.precheck_fds` | 问分销商是否接受发往该 transfer dealer 的 FDS(会打 HTTP,只读) |
-| `distributor_fulfillment_options` | `distributor.options.fulfillment_options_for_order` | 单张网单的**决策面板**:逐行候选分销商(最便宜在前)+ 本地库存对比行 + 裁决。只读。**读返回值前先看下面的三态说明** |
-| `distributor_confirm_order` | `distributor.api.confirm_order` | ⚠ **要 confirm**。Draft→Queued 并启动下单 worker = **真实采购不可逆**;RSR 无取消 API。柜台来源单还要求发票全款结清 |
-| `distributor_cancel_order` | `distributor.api.cancel_order` | 要 confirm + **要 reason**。仅在下单前(Draft/Queued)是安全的;已下单的会被标记并告警运营,退货是人工流程 |
-| `distributor_reroute` | `distributor.router.reroute` | 要 confirm。修好拦截原因后重跑路由,**只建 Draft**、幂等 |
-| `distributor_update_order_ffl` | `distributor.router.update_order_ffl` | 要 confirm。FDS Hold 的标准解法;新执照先过与柜台同一条 canonical 校验链(未过期+完整地址)才调 RSR |
+| `distributor_orders` | `distributor.api.list_orders` | List Distributor Orders, filterable by status and distributor |
+| `distributor_route_queue` | `distributor.router.route_queue` | **Confirmation queue**: Draft orders waiting for confirmation, plus web orders that were held back (unpaid, buyer FFL missing or expired, incomplete address) with the reason and the destination FFL's expiry. Read this before confirming anything |
+| `distributor_catalog_search` | `distributor.api.search` | Catalog typeahead over the locally synced catalog (not live stock); spans every enabled distributor when none is given |
+| `distributor_test_connection` | `distributor.hub.test_connection` | Probe one distributor: data-service catalog health plus ordering API credentials. Read-only; `ok: null` means not configured or not applicable, which is not a failure |
+| `distributor_quote` | `distributor.api.quote` | Per-item cost, MAP, MSRP, suggested price, restricted states, block flags; quantity comes from the cached catalog and is not guaranteed fresh |
+| `distributor_check_availability` | `distributor.api.check_availability` | **Live** quantity and price re-check (makes an HTTP call to the distributor; read-only) |
+| `distributor_precheck_fds` | `distributor.router.precheck_fds` | Asks the distributor whether it will ship to that transfer dealer (HTTP call; read-only) |
+| `distributor_fulfillment_options` | `distributor.options.fulfillment_options_for_order` | Decision panel for one web order: candidate distributors per line (cheapest first), a local-stock comparison row and a verdict. Read-only. **Read the three-state note below before using the result** |
+| `distributor_confirm_order` | `distributor.api.confirm_order` | Needs `confirm`. Draft to Queued and starts the ordering worker, which is **a real, irreversible purchase**; RSR has no cancel API. Counter-origin orders also require the invoice to be paid in full |
+| `distributor_cancel_order` | `distributor.api.cancel_order` | Needs `confirm` and a `reason`. Safe only before ordering (Draft or Queued); an order already placed is flagged and operations are alerted, because returns are a manual process |
+| `distributor_reroute` | `distributor.router.reroute` | Needs `confirm`. Re-runs routing after the blocking reason is fixed; only creates Drafts, idempotent |
+| `distributor_update_order_ffl` | `distributor.router.update_order_ffl` | Needs `confirm`. The standard fix for an FDS hold; the new licence passes the same canonical validation chain as the counter (not expired, complete address) before the distributor is called |
 
-### `distributor_fulfillment_options` 的返回值契约(容易读错,单列)
+### Return contract of `distributor_fulfillment_options`
 
-**两个字段是三态,`if not x` 在它们身上是错的**——`null` 的意思是"还判不了",不是"没问题":
+**Two fields are three-state, and `if not x` is wrong for them.** `null` means "cannot
+tell yet", not "fine":
 
-| 字段 | 取值 | `null` 的含义 |
+| Field | Values | Meaning of `null` |
 |---|---|---|
-| `verdict.fulfillable` | `true` / `false` / `null` | 判不了,看同级 `reason`:`unknown_destination`(目的州还没捕获——订单停在 Pending Route 或买家 FFL 未上传时**这是常态**)或 `stale_feed`(唯一够量的候选来自过期 feed) |
-| `restricted_state` | `true` / `false` / `null` | 同上,受限州判定尚无法做出 |
+| `verdict.fulfillable` | `true`, `false`, `null` | Cannot be decided; see the sibling `reason`: `unknown_destination` (the destination state is not captured yet, the normal case while an order is in Pending Route or the buyer's FFL is not uploaded) or `stale_feed` (the only candidate with enough quantity comes from an out-of-date feed) |
+| `restricted_state` | `true`, `false`, `null` | Same: the restricted-state check cannot be made yet |
 
-遇到 `null` 一律当 **HOLD**:如实说"未判定"并引用 `reason`,**不要说这行可以发货**。受限商品 + 未解析目的地正是这里绝不能放行的情形——POS 侧刚修掉的就是这个 fail-open,消费端读成 falsy 等于在自己这边重新打开它。
+Treat any `null` as a **hold**: say it is undecided, quote the `reason`, and do not say the
+line can ship. A restricted item with an unresolved destination is exactly the case that
+must never be let through.
 
-**候选行旗标**:`not_carried` = 该分销商目录里没有这个商品(**列出来**而不是丢掉,以免被误读成缺货);`blocked` = 有货但不可买(分销商封锁 / 需厂商批准);`stale` = 数量来自过期 feed。不可买的行一律**沉到最后**,所以第一条候选是**最可能可执行**的那条——但以该行的 `verdict` 与旗标为准,排序本身不是许可。
+**Candidate flags.** `not_carried` means the distributor's catalog does not have the item
+(listed, not dropped, so it is not misread as out of stock). `blocked` means in stock but not
+purchasable (distributor block or manufacturer approval needed). `stale` means the quantity
+comes from an out-of-date feed. Unbuyable rows sort last, so the first candidate is the most
+likely to be actionable, but the row's own `verdict` and flags decide; the ordering is not
+permission.
 
-**金额**:`unit_landed` 是**单件**、且**只含货款**。运费在下单前不存在,故 `shipping` 为 `null` 且 `shipping_known` 为 `false`。不要把 `unit_landed` 说成到岸价,也不要乘以数量当成最终成本。
+**Amounts.** `unit_landed` is per unit and covers the goods only. Shipping does not exist
+before an order is placed, so `shipping` is `null` and `shipping_known` is `false`. Do not
+present `unit_landed` as a landed cost, and do not multiply it by quantity as the final cost.
 
-## 10. CPA 模式（只读会计面）+ 报表工具包
+## 10. CPA mode (read-only accountant surface) and the report kit
 
-**模式开关**：启动环境变量 `GUNSTORE_MCP_MODE=cpa`（默认 `full` = 全部 115 工具中默认注册 108（4 个分销商队列动作 + 3 个 GunBroker 写动作需显式开启），行为与以前完全一致；未知值直接拒绝启动，不会静默降级成可写）。cpa 模式给会计/CPA 用：**写面在工具列表里物理不存在**，不是"存在但会拒绝"。三层防御，缺一层其余仍兜底：
+**Mode switch.** Set `GUNSTORE_MCP_MODE=cpa` at startup. The default `full` mode offers all
+115 tools, of which 108 register by default (the 4 distributor queue actions and the 3
+GunBroker write actions need explicit opt-in); the behaviour of `full` is unchanged. An
+unknown value refuses to start rather than silently degrading to a writable surface. In cpa
+mode the **write surface does not exist in the tool list**; it is not "present but
+refusing". There are three layers of defence, and each still holds if another fails:
 
-1. **注册层**：tools/list 恰好 = 下面 26 个名字（集合相等，测试钉死）；
-2. **客户端层**：一切写方法 + 未逐一列名的点路径方法（`frappe_run_method` 整个不注册）→ `CpaModeRefused`；只读点路径 allowlist 逐一列名，禁通配；
-3. **Settings 层**：7 个集成 Settings doctype 的 get/list 读也被挡（配置面对会计无用，密码遮蔽是框架行为不是本仓保证）。
+1. **Registration layer.** `tools/list` is exactly the 26 names below (set equality, pinned by tests).
+2. **Client layer.** Every write method and every dotted-path method not individually listed is refused with `CpaModeRefused` (`frappe_run_method` is not registered at all). The read-only dotted-path allowlist names each method; wildcards are not allowed.
+3. **Settings layer.** `get`/`list` reads of the seven integration Settings doctypes are blocked too (configuration is useless to an accountant; password masking is framework behaviour, not something this repo guarantees).
 
-**cpa 模式的 26 个工具**：
-- 通用查（4）：`frappe_list_documents` / `frappe_get_document` / `frappe_describe_doctype` / `frappe_run_report`
-- 业务只读（9）：`find_item` / `item_stock` / `firearms_in_stock` / `pending_orders` / `pending_web_orders` / `consignment_queue` / `consignment_dealers` / `consignment_serials` / `consignment_dealer_orders`
-- 盘点 / 现金抽屉只读（6，见 §3b；**full 模式同样可用**）：`cash_drawer_closes` / `cash_drawer_entries` / `cash_drawer_log` / `cash_drawer_weekly` / `inventory_counts` / `inventory_count_variance`。cpa 没有任何一个写。盘点两个读要求该 API 用户有 Stock 角色（POS 端 `COUNT_ROLES`），抽屉四个读 Accounts User 即可
-- 报表工具包（7，见下；**full 模式同样可用**）
+**The 26 cpa-mode tools:**
+- Generic reads (4): `frappe_list_documents`, `frappe_get_document`, `frappe_describe_doctype`, `frappe_run_report`.
+- Business reads (9): `find_item`, `item_stock`, `firearms_in_stock`, `pending_orders`, `pending_web_orders`, `consignment_queue`, `consignment_dealers`, `consignment_serials`, `consignment_dealer_orders`.
+- Stocktake and cash drawer reads (6, see section 3b; also available in `full`): `cash_drawer_closes`, `cash_drawer_entries`, `cash_drawer_log`, `cash_drawer_weekly`, `inventory_counts`, `inventory_count_variance`. None of the writes is included. The two stocktake reads need a Stock role on the API user; the four drawer reads need only Accounts User.
+- Report kit (7, below; also available in `full`).
 
-**远程连接器(OAuth,免密钥)**:`GUNSTORE_MCP_TRANSPORT=http` 时本服务器是 POS 的 OAuth 资源服务器——用户在 claude.ai / Claude Code 填网址、浏览器登录 POS 点允许即可,**每次调用以登录人本人的 POS 角色执行**,只收 Claude 连接器(动态注册的客户端)签出的令牌,**每次调用都在 POS 的 Connector Audit Log 留永久记录**(谁、哪个连接器、哪个工具、参数(秘密打码)、成败;记不上就不执行);cpa 三层闸照旧;全量面远程是 107 个(`upload_attachment` 读服务器本地路径,远程永不注册);分销商动作远程永不开,GunBroker 三个写动作只在 full 面开——POS 部署按该店 GunBroker Settings 的 enabled 自动设闸。细节见 README「Remote connector」。
+`available_serials` is **not** in cpa mode. It hides consigned-out and held guns by default,
+which would hide guns during a count; use `firearms_in_stock` for that.
 
-注意 cpa 模式**没有** `available_serials`（其默认剔除寄售/暂扣枪，在盘点语境会漏枪——盘点用 `firearms_in_stock`）。
+**Remote connector (OAuth, no API key).** With `GUNSTORE_MCP_TRANSPORT=http` the server is
+an OAuth resource server for the POS. A user enters the URL in claude.ai or Claude Code,
+signs in to the POS in the browser and approves. **Each call runs with the signed-in user's
+own POS roles.** Only tokens issued to Claude connectors (dynamically registered clients)
+are accepted, and every call is written to the POS Connector Audit Log permanently (who,
+which connector, which tool, which arguments with secrets masked, success or failure; if the row
+cannot be written the tool does not run). The three cpa layers apply unchanged. The full
+surface is 107 tools remotely (`upload_attachment` reads a path on the server and is never
+registered remotely). The distributor actions never open remotely. The three GunBroker
+write actions open on the full connector only, where the POS deployment sets the switch
+from that store's own GunBroker setting. See the README, "Remote connector".
 
-**账本在 QuickBooks(owner 裁定 2026-09-02)**:ERPNext 是业务系统与数据源,不是账本。喂 QB 的是 `sales_report` / `inventory_receipts` / `tax_liability` + 标准报表 Stock Balance;`financial_statement` / `ar_ap_summary` 只作参考(ERPNext 总账不录费用、不录供应商发票,SRBNB 长期挂账)。
+**Accounting basis.** ERPNext is the business system and the data source for these
+reports. Whether it is also the book of record depends on the company. `sales_report`,
+`inventory_receipts`, `tax_liability` and the standard Stock Balance report are the
+dependable extracts. Treat `financial_statement` and `ar_ap_summary` as reference when
+expenses and supplier invoices are kept in another ledger.
 
-**报表工具包**（口径权威 = run 2026-07-16-mcp-cpa-mode/cpa-review.md §2/§3）：
+**Report kit** (read-only, registered in both modes):
 
-| 你想… | 工具 | 说明 |
+| Task | Tool | Notes |
 |---|---|---|
-| 看期间营收+毛利（报税视图） | `sales_report(from_date, to_date, view="Product", channel?, product_type?)` | Sales Report 原样透传（含 report_summary 卡片）；view: Order / Order Detail / Product；channel: POS / Web / Manual |
-| 看期间**入库**了什么（枪/弹药/配件，从哪来、多少钱） | `inventory_receipts(from_date, to_date, view="Units", category?, receipt_class?, supplier?, include_transfers=False, include_custody=False)` | Inventory Receipts 报表原样透传（含卡片）；直接读库存流水（actual_qty>0），Cost Received 与 Stock In Hand 对得上；view: Units（默认，逐支一行）/ Summary（品类 × 入库类型汇总）/ Receipts（Desk 树形，行带 indent）；类型 Purchase / Trade-in / Consignment / Intake / Return / Adjustment / Revaluation（成本修正差额，件数 0，按存货调整记）；仓内调拨与顾客托管枪默认不出，开关或点名该类型才出；标记 No cost / No A&D |
-| 追总账明细 | `gl_entries(from_date, to_date, account?, party?, voucher_no?, voucher_type?, limit=500)` | 恒定 `is_cancelled=0`（cancel+amend 被撤单自动出列）；**截断显式** `truncated:true`，绝不静默截断；limit 夹 1..5000（0/空按 500），更多行用日期范围分页；单公司口径——多公司化需补 company filter |
-| 跑三大财务报表 | `financial_statement(statement, from_date, to_date, periodicity="Monthly")` | statement: `pnl` / `balance_sheet` / `trial_balance`；P&L/BS 走 Date Range;Trial Balance 需日期落在同一 Fiscal Year（自动解析,跨年拒绝） |
-| 查期间销售税负债滚动表 | `tax_liability(from_date, to_date)` | opening/collected/remitted/closing 按 voucher 分列,非常规 voucher fail-closed 单列;科目动态解析自默认销售税模板;**注意发票的 "Total Taxes and Charges" 含运费,不是销售税** |
-| 查 Payroc 刷卡流水并和 POS 对账（柜台+网单） | `payroc_transactions(from_date, to_date)` | 实时读 Payroc 网关、按日期列出全部交易（type = SALE / REFUND；status 里有 COMPLETE / READY / DECLINED / VOID 等；含 portal 里做的退款与作废），逐行按 orderId 对到 POS（柜台 = POS/Sales Invoice 名，网单 = Woo 订单号）；`flags` 标出不一致:POS 无记录 / 金额不符 / POS 记已收但网关作废 / 退款 POS 未记;`pos_only` = POS 记了但日期搜索没返回的(逐笔回查);`summary` 只算钱实际在手的(COMPLETE/READY);卡号只出类型+后 4 位;每次最多 31 天,`truncated:true`(服务端翻页约 75 秒封顶)就拆段查;API 用户需 System Manager / Accounts Manager / Accounts User 之一;需要带 `payroc/ledger.py` 的 POS 版本;只读 |
-| 查应收/应付账龄 | `ar_ap_summary(kind, as_on_date)` | kind: `ar` / `ap`;Posting Date 基准,30/60/90/120 账龄桶;寄售结算应收在 AR 里按经销商列示。**`ap` 不适用**:账本在 QuickBooks、进货预付,ERPNext 不录 Purchase Invoice(直发单的 RSR 应付除外) |
+| Revenue and margin for a period | `sales_report(from_date, to_date, view="Product", channel?, product_type?)` | The Sales Report passed through unchanged (including summary cards). `view`: Order, Order Detail or Product; `channel`: POS, Web or Manual |
+| What entered stock in a period | `inventory_receipts(from_date, to_date, view="Units", category?, receipt_class?, supplier?, include_transfers=False, include_custody=False)` | The Inventory Receipts report as is. Read straight from the stock ledger (`actual_qty>0`), so Cost Received reconciles with Stock In Hand. `view`: Units (default, one row per unit), Summary (category by receipt type) or Receipts (Desk tree, rows carry `indent`). Classes: Purchase, Trade-in, Consignment, Intake, Return, Adjustment, Revaluation (a cost correction: zero units, booked as an inventory adjustment). Inter-warehouse transfers and customer-custody guns are left out unless the switch is set or the class is named. Rows flagged No cost or No A&D |
+| Trace general-ledger detail | `gl_entries(from_date, to_date, account?, party?, voucher_no?, voucher_type?, limit=500)` | Always `is_cancelled=0` (cancelled and amended vouchers drop out). Truncation is explicit (`truncated:true`), never silent; `limit` is clamped to 1..5000 (0 or empty means 500), page by date range for more. Single-company basis |
+| Financial statements | `financial_statement(statement, from_date, to_date, periodicity="Monthly")` | `statement`: `pnl`, `balance_sheet` or `trial_balance`. P&L and balance sheet use Date Range; Trial Balance needs dates in one Fiscal Year (resolved automatically, a range spanning years is refused) |
+| Sales-tax liability roll-forward | `tax_liability(from_date, to_date)` | Opening, collected, remitted, closing per voucher; unusual vouchers are listed separately (fail-closed). Accounts are resolved from the default sales-tax template. Note that an invoice's "Total Taxes and Charges" includes shipping, so it is not the sales tax |
+| Payroc card transactions reconciled to the POS | `payroc_transactions(from_date, to_date)` | Reads the Payroc gateway live and lists every transaction in the date range (type SALE or REFUND; statuses such as COMPLETE, READY, DECLINED, VOID; portal refunds and voids included), matched row by row on `orderId` to the POS (counter: POS or Sales Invoice name; web: Woo order number). `flags` marks mismatches: no POS record, amount differs, POS says paid but the gateway voided, refund not recorded in the POS. `pos_only` lists POS records the date search did not return (looked up individually). `summary` counts only money actually held (COMPLETE and READY). Card type and last 4 digits only. At most 31 days per call; if `truncated:true`, split the range. The API user needs System Manager, Accounts Manager or Accounts User. Needs a POS release with `payroc/ledger.py`. Read-only |
+| Aged receivables or payables | `ar_ap_summary(kind, as_on_date)` | `kind`: `ar` or `ap`. Posting Date basis, 30/60/90/120 buckets; consignment settlement receivables are listed per dealer. `ap` is only meaningful when purchases are recorded as Purchase Invoices in ERPNext, so treat it as reference |
 
-**月结/报税常用标准报表**（`frappe_run_report` 直跑,键名已核对 ERPNext v16 源码）：
+**Standard reports often used for month-end and tax work** (run with `frappe_run_report`; filter keys checked against the ERPNext v16 source):
 
-| 报表名 | 关键 filter 键 |
+| Report | Key filters |
 |---|---|
 | `Sales Register` | company, from_date, to_date, customer, warehouse, mode_of_payment, item_group |
-| `General Ledger` | company, from_date, to_date, account, party_type+party, voucher_no, categorize_by |
+| `General Ledger` | company, from_date, to_date, account, party_type + party, voucher_no, categorize_by |
 | `Stock Balance` | company, from_date, to_date, item_code, item_group, warehouse |
-| `Accounts Receivable` / `Accounts Payable` | company, report_date, ageing_based_on("Posting Date"/"Due Date"), range("30, 60, 90, 120") |
-| `Trial Balance` | company, **fiscal_year(必填)**, from_date, to_date |
+| `Accounts Receivable` / `Accounts Payable` | company, report_date, ageing_based_on ("Posting Date" or "Due Date"), range ("30, 60, 90, 120") |
+| `Trial Balance` | company, **fiscal_year (required)**, from_date, to_date |
 
-（缓建备忘：`stock_valuation` 专用工具——年终存货 tie-out 直接 `frappe_run_report("Stock Balance", …)` 即可。）
+A dedicated `stock_valuation` tool is deliberately not provided: for a year-end inventory
+tie-out, run `frappe_run_report("Stock Balance", ...)`.
 
-## 11. 这个 MCP **做不了**的事（别硬试，走别的路）
+## 11. What this MCP cannot do (use another route)
 
-| 做不了 | 替代路径 |
+| Cannot do | Alternative |
 |---|---|
-| 改密码/API 密钥类字段 | Desk 后台直接改（设计如此，防泄露） |
-| 批量传枪支照片并建相册 | firearm-listing-import 技能的脚本（自动 resize + 建 gallery） |
-| 改 doctype 结构/权限/角色 | 走代码和迁移，MCP 写入黑名单挡着 |
-| Payroc 刷卡/退款 | POS 收银界面操作（真实资金，未包装成工具） |
-| 在 FastBound 填 4473 表格本身 | FastBound 网页 UI（表格只能在它家填） |
-| 代经销商在门户签收/报售（mark_received / mark_sold） | 那两个方法绑定门户 dealer 会话身份，管理密钥调用会被拒；让经销商自己在门户点，或等 staff 端代操作方法上线 |
-| 手动触发 ShipStation tracking 轮询 | 每 10 分钟 cron 自动跑（poll_consignment_tracking 非白名单方法）；急查去 ShipStation 后台 |
-| 给 dev/测试环境做操作 | 本地 `bench --site dev.localhost` + 本地 WC 克隆 |
+| Change password or API-key fields | Change them in the Desk (by design, to prevent leaks) |
+| Upload gun photos in bulk and build galleries | Use a script that resizes images first and creates the gallery (for example the `firearm-listing-import` skill's script) |
+| Change doctype structure, permissions or roles | Do it in code and migrations; the MCP write denylist blocks it |
+| Take a card payment or refund through Payroc | Use the POS checkout screen (real money; deliberately not wrapped as a tool) |
+| Fill in the 4473 form itself in FastBound | Use the FastBound web UI (the form can only be completed there) |
+| Mark received or sold on behalf of a consignment dealer (`mark_received`, `mark_sold`) | These methods are bound to the portal dealer's session identity and refuse admin-key calls; the dealer does it in the portal |
+| Trigger the ShipStation tracking poll manually | It runs on a schedule (`poll_consignment_tracking` is not a whitelisted method); check the ShipStation dashboard for an urgent lookup |
 
 ---
 
-*工具总数 115（10 个通用 + 56 个专用 + 12 个分销商 + 7 个报表 + 30 个门店运营），默认注册 108（4 个分销商队列动作需 `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`；3 个 GunBroker 写动作需 `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`）；`GUNSTORE_MCP_MODE=cpa` 只读模式恰注册其中 26 个。对应版本 v0.9.1；工具行为以 README.md
-和源码 `gunstore_mcp/tools/` 为准。*
+*Total tools: 115 (10 generic + 56 dedicated + 12 distributor + 7 report tools + 30 shop-floor). 108 register by default: the 4 distributor queue actions need `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1` and the 3 GunBroker write actions need `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`. `GUNSTORE_MCP_MODE=cpa` registers exactly 26 of them. Matches version v0.9.1; the README and the source in `gunstore_mcp/tools/` are authoritative for behaviour.*

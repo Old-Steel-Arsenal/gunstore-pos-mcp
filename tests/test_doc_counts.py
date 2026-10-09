@@ -112,7 +112,6 @@ def _live() -> dict:
 # (file, regex with ONE capture group, which live count it must equal)
 CLAIMS = [
     ("README.md", r"\*\*(\d+) tools\*\*\s*remotely", "remote_default"),
-    ("TOOLS.md", r"全量面远程是 (\d+) 个", "remote_default"),
     ("README.md", r"(\d+) tools total", "total"),
     ("README.md", r"(\d+) generic", "generic"),
     ("README.md", r"(\d+) curated", "curated"),
@@ -123,54 +122,37 @@ CLAIMS = [
     ("README.md", r"(\d+) CPA reports", "reports"),
     ("README.md", r"(\d+) shop-floor", "shopfloor"),
     ("README.md", r"(\d+) register by default", "default"),
-    ("CLAUDE.md", r"\((\d+) 工具", "total"),
-    ("CLAUDE.md", r"(\d+) 个通用 Frappe CRUD", "generic"),
-    ("CLAUDE.md", r"(\d+) 个业务工具", "curated"),
-    ("CLAUDE.md", r"(\d+) 个分销商工具", "distributor"),
-    ("CLAUDE.md", r"(\d+) 个 CPA 报表工具", "reports"),
-    ("CLAUDE.md", r"(\d+) 个门店运营工具", "shopfloor"),
-    ("CLAUDE.md", r"默认注册 (\d+) 个", "default"),
-    ("CLAUDE.md", r"恰 (\d+) 工具", "cpa_surface"),
-    ("TOOLS.md", r"工具总数 (\d+)", "total"),
-    ("TOOLS.md", r"(\d+) 个通用 \+", "generic"),
-    ("TOOLS.md", r"(\d+) 个专用", "curated"),
-    # anchored on the trailing " +" so it cannot latch onto "4 个分销商队列动作"
-    ("TOOLS.md", r"(\d+) 个分销商 \+", "distributor"),
-    ("TOOLS.md", r"(\d+) 个报表", "reports"),
-    ("TOOLS.md", r"(\d+) 个门店运营", "shopfloor"),
-    ("TOOLS.md", r"全部 (\d+) 工具", "total"),
-    ("TOOLS.md", r"默认注册 (\d+)", "default"),
-    ("TOOLS.md", r"恰注册其中 (\d+) 个", "cpa_surface"),
-    ("TOOLS.md", r"只读 (\d+)", "distributor_default"),
-    ("TOOLS.md", r"动作 (\d+)", "actions"),
-    # GunBroker buckets. Deliberately NOT phrased "只读 N" / "动作 N": those two
-    # patterns match every occurrence in the file, so reusing the wording in §2b
-    # would make the GunBroker numbers get checked against the distributor's.
-    ("TOOLS.md", r"GunBroker 只读工具 (\d+)", "gb_readonly"),
-    ("TOOLS.md", r"GunBroker 写工具 (\d+)", "gb_actions"),
-    # The size of each opt-in SET, as the three intro paragraphs phrase it —
-    # "the 3 GunBroker write actions" / "3 个 GunBroker 写动作", and the same for
-    # the distributor's 4. Five sites quote the GunBroker number and until now
-    # exactly one of them was pinned.
-    #
-    # The sweep below does not cover this, and cannot be made to: it only asks
-    # whether a quoted number is SOME live bucket size, and 2 is one (gb_readonly).
-    # Measured, not assumed — with these four rows absent, editing all four
-    # unpinned sites from 3 back to 2 left the suite entirely green. A count is
-    # only guarded where something knows which count it is.
+    ("TOOLS.md", r"Total tools: (\d+)", "total"),
+    ("TOOLS.md", r"(\d+) generic \+", "generic"),
+    ("TOOLS.md", r"(\d+) dedicated", "curated"),
+    # anchored on the trailing " +" so it cannot latch onto "4 distributor queue actions"
+    ("TOOLS.md", r"(\d+) distributor \+", "distributor"),
+    ("TOOLS.md", r"(\d+) report tools", "reports"),
+    ("TOOLS.md", r"(\d+) shop-floor\)", "shopfloor"),
+    ("TOOLS.md", r"offers all\s+(\d+) tools", "total"),
+    ("TOOLS.md", r"(\d+) register by default", "default"),
+    ("TOOLS.md", r"registers exactly (\d+) of them", "cpa_surface"),
+    ("TOOLS.md", r"exactly the (\d+) names", "cpa_surface"),
+    ("TOOLS.md", r"surface is (\d+) tools remotely", "remote_default"),
+    # the distributor split, as the section 9b heading phrases it
+    ("TOOLS.md", r"\((\d+) read-only \+", "distributor_default"),
+    ("TOOLS.md", r"\+ (\d+) queue actions\)", "actions"),
+    # GunBroker buckets. Deliberately phrased "<N> read-only GunBroker tools" so the
+    # distributor "(N read-only +" pattern above can never match them.
+    ("TOOLS.md", r"(\d+) read-only GunBroker tools", "gb_readonly"),
+    ("TOOLS.md", r"(\d+)\s+GunBroker write actions", "gb_actions"),
+    ("TOOLS.md", r"(\d+) distributor queue actions", "actions"),
+    # The size of each opt-in SET as the README phrases it. The sweep below cannot
+    # guard these: it only asks whether a quoted number is SOME live bucket size, and
+    # 2 is one (gb_readonly). A count is only guarded where something knows which
+    # count it is.
     ("README.md", r"(\d+) GunBroker write actions", "gb_actions"),
-    ("CLAUDE.md", r"(\d+) 个 GunBroker 写动作", "gb_actions"),
-    ("TOOLS.md", r"(\d+) 个 GunBroker 写动作", "gb_actions"),
-    # …and the distributor's, which has the identical hole and has simply never
-    # moved. Anchored on 队列动作 so it cannot collide with "(\d+) 个分销商 \+".
     ("README.md", r"(\d+) distributor queue actions", "actions"),
-    ("CLAUDE.md", r"(\d+) 个分销商队列动作", "actions"),
-    ("TOOLS.md", r"(\d+) 个分销商队列动作", "actions"),
 ]
 
 # "12 tools", "12-tool", "12 工具", "12 个工具"
 _SWEEP = (re.compile(r"(\d+)[ -]tools?\b"), re.compile(r"(\d+)\s*个?工具"))
-_SWEPT_FILES = ("README.md", "CLAUDE.md", "TOOLS.md")
+_SWEPT_FILES = ("README.md", "TOOLS.md")
 
 
 class ExactClaims(unittest.TestCase):
