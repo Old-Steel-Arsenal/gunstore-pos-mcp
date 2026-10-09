@@ -13,7 +13,7 @@ tag and the Caddy routes live in the gunstore-pos repo:
 ## Shipping an MCP change
 
 1. Merge to `main` here → the `image` workflow runs the tests, then pushes
-   `ghcr.io/xuanji86/gunstore-pos-mcp:sha-<7>` (and `:main`).
+   `ghcr.io/old-steel-arsenal/gunstore-pos-mcp:sha-<7>` (and `:main`).
 2. In gunstore-pos, open a PR that sets `MCP_TAG=sha-<7>` in
    `deploy/prod/mcp/version.env`.
 3. It goes out with the next POS release, on both stores; rolling the POS back

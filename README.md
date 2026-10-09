@@ -1,11 +1,11 @@
 # GunStore-POS Admin MCP
 
 A local [MCP](https://modelcontextprotocol.io) server that wraps the GunStore-POS
-Frappe REST API, so you can read and change **production** settings/content from
+Frappe REST API, so you can read and change a store's settings and content from
 Claude or Codex — toggle integration config, edit item pricing/listing, fix
 records, trigger RSR/FastBound/ATF operations, run the Firearms-In-Stock report.
 
-> **Companion repo:** [`firearm-listing-import`](https://github.com/xuanji86/firearm-listing-import) —
+> **Companion:** the `firearm-listing-import` skill in the [`osa-listing` plugin](https://github.com/Old-Steel-Arsenal/osa-skills) —
 > a Claude Code / Codex skill that uses this MCP (per-gun photos + descriptions → Serial No →
 > WooCommerce). Extracted from the gunstore-pos app as a standalone, separately distributable package.
 
@@ -34,8 +34,8 @@ In Desk as the user you want to act as (Administrator): top-right avatar →
 cp .env.example .env
 # edit .env: FRAPPE_BASE_URL, FRAPPE_API_KEY, FRAPPE_API_SECRET
 ```
-`.env` is git-ignored. Point at dev first (`http://dev.localhost:8000`) to test,
-then switch to prod (`https://pos.oldsteelarsenal.com`).
+`.env` is git-ignored. Point at a dev site first (`http://dev.localhost:8000`) to test,
+then switch to your live POS URL (e.g. `https://pos.example.com`).
 
 ### 3. Install
 ```bash
@@ -76,7 +76,7 @@ Secrets stay in `.env` (loaded by the server), not in the agent config.
 
 ## Tools
 
-> **中文速查手册（按"你想干什么"组织，含安全须知与替代路径）：[TOOLS.md](TOOLS.md)**
+> **Tool reference, organised by task (safety notes and alternatives included): [TOOLS.md](TOOLS.md)**
 
 115 tools total: 10 generic + 56 curated + 12 distributor + 7 CPA reports + 30 shop-floor; 108 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
 
@@ -93,7 +93,7 @@ To install **only** the read-only accountant surface (no full server) — e.g. o
 a second machine or for an analyst agent:
 
 ```bash
-git clone git@github.com:xuanji86/gunstore-pos-mcp.git ~/gunstore-pos-mcp
+git clone git@github.com:Old-Steel-Arsenal/gunstore-pos-mcp.git ~/gunstore-pos-mcp
 claude mcp add gunstore-pos-cpa --scope user \
   --env GUNSTORE_MCP_MODE=cpa \
   --env FRAPPE_BASE_URL=https://pos.example.com \
@@ -188,7 +188,7 @@ Every write needs `confirm=true`; there is no registration gate (they are the sa
 | `financial_statement` | P&L / Balance Sheet (Date Range) / Trial Balance (fiscal-year auto-resolved) |
 | `tax_liability` | sales-tax liability roll-forward from the GL — accounts resolved from the default sales-tax template, vouchers bucketed fail-closed, cent-exact identity asserted |
 | `payroc_transactions` | every Payroc card transaction for a date range (≤31 days), read live from the gateway — counter and Woo web orders, sales / refunds / declines, portal refunds and voids included — each matched to the POS with disagreement flags; card type + last 4 only, plus the cardholder name. Needs a gunstore-pos release carrying `payroc/ledger.py`, and an API user with System Manager / Accounts Manager / Accounts User |
-| `ar_ap_summary` | aged AR / AP as of a date (Posting Date basis, 30/60/90/120). AP is not maintained in ERPNext (QuickBooks is the book; purchases are prepaid) — reference only |
+| `ar_ap_summary` | aged AR / AP as of a date (Posting Date basis, 30/60/90/120). AP is only meaningful when purchases are recorded as Purchase Invoices in ERPNext — reference only |
 
 ## Remote connector (OAuth, no API key)
 
@@ -236,7 +236,7 @@ and approves. No key is typed anywhere, and the server holds none.
   on the POS host behind that host's reverse proxy, which maps the public path to
   `/mcp` and forwards `/.well-known/oauth-protected-resource/<public path>` unchanged.
 - Deployment: a container per surface on each store's POS host, behind that host's
-  Caddy — image `ghcr.io/xuanji86/gunstore-pos-mcp` (built on every push to main),
+  Caddy — image `ghcr.io/old-steel-arsenal/gunstore-pos-mcp` (built on every push to main),
   deployed by each POS release (gunstore-pos `deploy/prod/mcp`, pinned
   `MCP_TAG`) — see `deploy/README.md`.
 - POS side, once per site (OAuth Settings): *Show Auth Server Metadata* and
