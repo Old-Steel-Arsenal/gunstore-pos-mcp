@@ -17,8 +17,8 @@ the authority on exact signatures.
    on write and are never returned on read. Change secrets in the POS Desk (My Settings,
    or the relevant Settings page).
 
-Every Woo-related tool takes an optional `site` argument: `retail` (the default) or
-`dealer` (a second, dealer-facing storefront).
+Every Woo-related tool takes an optional `site` argument; the only value is `retail`
+(the default). The separate dealer storefront was retired with POS 1.11.0.
 
 ---
 
@@ -260,7 +260,7 @@ Service page in the Desk.
 
 | Task | Tool | Notes |
 |---|---|---|
-| Read an integration's configuration | `get_settings` | `ffl`, `fastbound`, `rsr`, `payroc`, `woocommerce`, `dealer`, `shipstation`, `gunbroker`, `sports_south` or `data_service` |
+| Read an integration's configuration | `get_settings` | `ffl`, `fastbound`, `rsr`, `payroc`, `woocommerce`, `shipstation`, `gunbroker`, `sports_south` or `data_service` |
 | Change configuration (non-secret fields) | `update_settings` | Password and key fields are stripped; change those in the Desk |
 | Upload a local file to the POS | `upload_attachment` | Can attach to a record (`doctype` + `name`) or fill an Attach field. Private by default; images used on the storefront need `is_private=false`. Local stdio server only |
 

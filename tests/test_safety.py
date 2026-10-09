@@ -32,8 +32,8 @@ from gunstore_mcp.safety import (
 # field somewhere and forgetting this file shows up as a gap, not a silent pass.
 EVERY_CREDENTIAL_FIELD = [
 	("api_key", "FastBound / Payroc / ShipStation Settings"),
-	("consumer_key", "WooCommerce + Dealer WooCommerce Settings"),
-	("consumer_secret", "WooCommerce + Dealer WooCommerce Settings"),
+	("consumer_key", "WooCommerce Settings"),
+	("consumer_secret", "WooCommerce Settings"),
 	("dealer_password", "RSR Settings"),
 	("dev_key", "GunBroker Settings"),
 	("sandbox_dev_key", "GunBroker Settings"),
@@ -42,7 +42,7 @@ EVERY_CREDENTIAL_FIELD = [
 	("fulfillment_password", "RSR Settings"),
 	("osa_api_secret", "FFL Settings"),
 	("provider_api_key", "FFL Settings"),
-	("webhook_secret", "WooCommerce / Dealer / FastBound Settings"),
+	("webhook_secret", "WooCommerce / FastBound Settings"),
 ]
 
 # Real fieldnames that contain "key" but are not secrets. RSR's key_dealer is a

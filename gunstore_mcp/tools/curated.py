@@ -3,7 +3,7 @@ ops. Thin wrappers over the generic backbone + the apps' whitelisted methods."""
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Literal
 
 from ..config import HTTP, _load_env, get_transport
 from ..frappe_client import get_client
@@ -16,7 +16,6 @@ _SETTINGS = {
     "rsr": "RSR Settings",
     "payroc": "Payroc Settings",
     "woocommerce": "WooCommerce Settings",
-    "dealer": "Dealer WooCommerce Settings",
     "shipstation": "ShipStation Settings",
     "gunbroker": "GunBroker Settings",
     "sports_south": "Sports South Settings",
@@ -86,7 +85,7 @@ def register(mcp: Any) -> None:
     @mcp.tool()
     def get_settings(which: str) -> Any:
         """Read an integration's Settings. which: ffl | fastbound | rsr | payroc |
-        woocommerce | dealer (dealer-portal WooCommerce) | shipstation | gunbroker |
+        woocommerce | shipstation | gunbroker |
         sports_south, data_service.
         Password fields are never returned by Frappe."""
         dt = _resolve(which)
@@ -95,7 +94,7 @@ def register(mcp: Any) -> None:
     @mcp.tool()
     def update_settings(which: str, values: dict) -> Any:
         """Update an integration's Settings. which: ffl | fastbound | rsr | payroc |
-        woocommerce | dealer (dealer-portal WooCommerce) | shipstation | gunbroker |
+        woocommerce | shipstation | gunbroker |
         sports_south, data_service. Credential/password fields are stripped — set those in Desk.
         On gunbroker the environment, credential and money fields are refused
         outright (enabled, sandbox_mode, base_url_override, dev_key,
@@ -112,19 +111,19 @@ def register(mcp: Any) -> None:
         return get_client().call_method("ffl_integrations.fastbound.client_api.test_connection")
 
     @mcp.tool()
-    def woo_test_connection(site: str = "retail") -> Any:
+    def woo_test_connection(site: Literal["retail"] = "retail") -> Any:
         """Probe a WooCommerce store's API connection (read-only).
-        site: retail (main store) | dealer (dealer portal)."""
+        site: retail (the only store)."""
         return get_client().call_method(
             "ffl_woo_sync.woocommerce.client_api.test_connection", {"site": site}
         )
 
     @mcp.tool()
-    def woo_push_item(item_code: str, site: str = "retail", confirm: bool = False) -> Any:
+    def woo_push_item(item_code: str, site: Literal["retail"] = "retail", confirm: bool = False) -> Any:
         """Push (create or update) the WooCommerce product(s) for an Item.
         Per-serial firearms push every Active Serial No individually; non-firearm
         and uniform-price firearms push a single item-level product. For ONE gun
-        use woo_push_serial instead. site: retail | dealer. Consequential
+        use woo_push_serial instead. site: retail (the only store). Consequential
         — confirm=true."""
         require_confirm(f"woo_push_item {item_code} ({site})", confirm)
         return get_client().call_method(
@@ -133,9 +132,9 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    def woo_delist_item(item_code: str, site: str = "retail", confirm: bool = False) -> Any:
+    def woo_delist_item(item_code: str, site: Literal["retail"] = "retail", confirm: bool = False) -> Any:
         """Set the WooCommerce product for an Item to Draft + stock 0, hiding it
-        from the shop immediately. site: retail | dealer. confirm=true."""
+        from the shop immediately. site: retail (the only store). confirm=true."""
         require_confirm(f"woo_delist_item {item_code} ({site})", confirm)
         return get_client().call_method(
             "ffl_woo_sync.woocommerce.client_api.delist_item_now",
@@ -143,10 +142,10 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    def woo_reconcile(item_code: str, site: str = "retail", confirm: bool = False) -> Any:
+    def woo_reconcile(item_code: str, site: Literal["retail"] = "retail", confirm: bool = False) -> Any:
         """Push the item-level product AND all Active Serial Nos for an Item in
         one call. Suitable for the initial listing of a per-serial firearm where
-        everything needs to go live at once. site: retail | dealer. confirm=true."""
+        everything needs to go live at once. site: retail (the only store). confirm=true."""
         require_confirm(f"woo_reconcile {item_code} ({site})", confirm)
         return get_client().call_method(
             "ffl_woo_sync.woocommerce.client_api.reconcile_now",
@@ -154,11 +153,11 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    def woo_push_serial(serial_no: str, site: str = "retail", confirm: bool = False) -> Any:
+    def woo_push_serial(serial_no: str, site: Literal["retail"] = "retail", confirm: bool = False) -> Any:
         """Push (create or update) the WooCommerce product for ONE firearm Serial No
         — the per-gun listing action (SKU item_code::serial). Prefer this over
         woo_push_item when only specific guns changed: woo_push_item pushes EVERY
-        Active serial of that item. site: retail | dealer. confirm=true."""
+        Active serial of that item. site: retail (the only store). confirm=true."""
         require_confirm(f"woo_push_serial {serial_no} ({site})", confirm)
         return get_client().call_method(
             "ffl_woo_sync.woocommerce.client_api.push_serial_now",
@@ -166,9 +165,9 @@ def register(mcp: Any) -> None:
         )
 
     @mcp.tool()
-    def woo_delist_serial(serial_no: str, site: str = "retail", confirm: bool = False) -> Any:
+    def woo_delist_serial(serial_no: str, site: Literal["retail"] = "retail", confirm: bool = False) -> Any:
         """Set ONE Serial No's WooCommerce product to Draft + stock 0, hiding that
-        gun from the shop immediately. site: retail | dealer. confirm=true."""
+        gun from the shop immediately. site: retail (the only store). confirm=true."""
         require_confirm(f"woo_delist_serial {serial_no} ({site})", confirm)
         return get_client().call_method(
             "ffl_woo_sync.woocommerce.client_api.delist_serial_now",
