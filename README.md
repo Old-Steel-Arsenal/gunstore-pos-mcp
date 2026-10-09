@@ -5,10 +5,6 @@ Frappe REST API, so you can read and change a store's settings and content from
 Claude or Codex — toggle integration config, edit item pricing/listing, fix
 records, trigger RSR/FastBound/ATF operations, run the Firearms-In-Stock report.
 
-> **Companion:** the `firearm-listing-import` skill in the [`osa-listing` plugin](https://github.com/Old-Steel-Arsenal/osa-skills) —
-> a Claude Code / Codex skill that uses this MCP (per-gun photos + descriptions → Serial No →
-> WooCommerce). Extracted from the gunstore-pos app as a standalone, separately distributable package.
-
 ## How it works
 
 - A small **generic backbone** (`frappe_*` tools) covers every doctype and every
