@@ -247,6 +247,7 @@ portal dealer's session identity and are refused when called with an admin key (
 | Re-verify every FFL supplier | `reverify_all_ffls` | yes | Bulk |
 | Correct manufacturer or importer on a gun already in the book | `push_serial_to_fastbound` | yes | Edits the FastBound book entry in place |
 | Reconcile: disposed in FastBound but still in stock here | `boundbook_reconcile` | only with `apply=true` | Reports only by default; does not change stock |
+| Report guns disposed in FastBound but still in stock here (read-only) | `boundbook_mismatches` | no | The `boundbook_reconcile` dry run as its own tool: the POS method has no write path, so it is also available in cpa mode. Needs a POS release with `inventory_sync.boundbook_mismatches` |
 | Check the FastBound connection | `fastbound_test_connection` | no | Read-only |
 
 ## 7. Distributor catalogs
@@ -343,20 +344,21 @@ present `unit_landed` as a landed cost, and do not multiply it by quantity as th
 ## 10. CPA mode (read-only accountant surface) and the report kit
 
 **Mode switch.** Set `GUNSTORE_MCP_MODE=cpa` at startup. The default `full` mode offers all
-115 tools, of which 108 register by default (the 4 distributor queue actions and the 3
+116 tools, of which 109 register by default (the 4 distributor queue actions and the 3
 GunBroker write actions need explicit opt-in); the behaviour of `full` is unchanged. An
 unknown value refuses to start rather than silently degrading to a writable surface. In cpa
 mode the **write surface does not exist in the tool list**; it is not "present but
 refusing". There are three layers of defence, and each still holds if another fails:
 
-1. **Registration layer.** `tools/list` is exactly the 26 names below (set equality, pinned by tests).
+1. **Registration layer.** `tools/list` is exactly the 27 names below (set equality, pinned by tests).
 2. **Client layer.** Every write method and every dotted-path method not individually listed is refused with `CpaModeRefused` (`frappe_run_method` is not registered at all). The read-only dotted-path allowlist names each method; wildcards are not allowed.
 3. **Settings layer.** `get`/`list` reads of the seven integration Settings doctypes are blocked too (configuration is useless to an accountant; password masking is framework behaviour, not something this repo guarantees).
 
-**The 26 cpa-mode tools:**
+**The 27 cpa-mode tools:**
 - Generic reads (4): `frappe_list_documents`, `frappe_get_document`, `frappe_describe_doctype`, `frappe_run_report`.
-- Business reads (9): `find_item`, `item_stock`, `firearms_in_stock`, `pending_orders`, `pending_web_orders`, `consignment_queue`, `consignment_dealers`, `consignment_serials`, `consignment_dealer_orders`.
+- Business reads (10): `find_item`, `item_stock`, `firearms_in_stock`, `pending_orders`, `pending_web_orders`, `consignment_queue`, `consignment_dealers`, `consignment_serials`, `consignment_dealer_orders`, `boundbook_mismatches` (the dry-run-only bound-book reconcile; `boundbook_reconcile` can apply, so it stays full-mode only).
 - Stocktake and cash drawer reads (6, see section 3b; also available in `full`): `cash_drawer_closes`, `cash_drawer_entries`, `cash_drawer_log`, `cash_drawer_weekly`, `inventory_counts`, `inventory_count_variance`. None of the writes is included. The two stocktake reads need a Stock role on the API user; the four drawer reads need only Accounts User.
+- `boundbook_mismatches` reads the whole FastBound book (one slow call, 130 s timeout). The POS allows it for System Manager, Sales User/Manager, Stock User/Manager and Accounts User.
 - Report kit (7, below; also available in `full`).
 
 `available_serials` is **not** in cpa mode. It hides consigned-out and held guns by default,
@@ -369,7 +371,7 @@ own POS roles.** Only tokens issued to Claude connectors (dynamically registered
 are accepted, and every call is written to the POS Connector Audit Log permanently (who,
 which connector, which tool, which arguments with secrets masked, success or failure; if the row
 cannot be written the tool does not run). The three cpa layers apply unchanged. The full
-surface is 107 tools remotely (`upload_attachment` reads a path on the server and is never
+surface is 108 tools remotely (`upload_attachment` reads a path on the server and is never
 registered remotely). The distributor actions never open remotely. The three GunBroker
 write actions open on the full connector only, where the POS deployment sets the switch
 from that store's own GunBroker setting. See the README, "Remote connector".
@@ -419,4 +421,4 @@ tie-out, run `frappe_run_report("Stock Balance", ...)`.
 
 ---
 
-*Total tools: 115 (10 generic + 56 dedicated + 12 distributor + 7 report tools + 30 shop-floor). 108 register by default: the 4 distributor queue actions need `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1` and the 3 GunBroker write actions need `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`. `GUNSTORE_MCP_MODE=cpa` registers exactly 26 of them. Matches version v0.9.1; the README and the source in `gunstore_mcp/tools/` are authoritative for behaviour.*
+*Total tools: 116 (10 generic + 57 dedicated + 12 distributor + 7 report tools + 30 shop-floor). 109 register by default: the 4 distributor queue actions need `GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1` and the 3 GunBroker write actions need `GUNSTORE_MCP_GUNBROKER_ACTIONS=1`. `GUNSTORE_MCP_MODE=cpa` registers exactly 27 of them. Matches version v0.9.1; the README and the source in `gunstore_mcp/tools/` are authoritative for behaviour.*

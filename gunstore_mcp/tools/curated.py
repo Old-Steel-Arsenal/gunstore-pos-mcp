@@ -416,6 +416,25 @@ def register(mcp: Any) -> None:
         return get_client().call_method(
             "ffl_integrations.fastbound.inventory_sync.sync_in_stock_from_boundbook",
             {"dry_run": 0 if apply else 1, "item_ids": item_ids},
+            # Pages the whole FastBound book too: a 30s client timeout would report a
+            # failure while the server goes on removing stock.
+            timeout=130,
+        )
+
+    @mcp.tool()
+    def boundbook_mismatches() -> Any:
+        """Dry-run-only bound-book reconciliation: in-stock firearm Serial Nos that
+        FastBound shows as disposed but we still hold Active. Same report as
+        boundbook_reconcile without apply; read-only by construction (the POS
+        method has no write path) and available in cpa mode, which
+        boundbook_reconcile (it can apply) is not. Guns held at a consignment
+        dealer are listed separately under consignment_held and are not
+        discrepancies. Takes no parameters: a dry run reports every mismatch."""
+        return get_client().call_method(
+            "ffl_integrations.fastbound.inventory_sync.boundbook_mismatches",
+            {},
+            # The server pages the whole FastBound book (gunicorn cap 120s).
+            timeout=130,
         )
 
     # ---- B. receiving & stock adjustments (writes) ---------------------------

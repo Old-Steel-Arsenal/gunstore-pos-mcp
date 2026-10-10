@@ -19,8 +19,9 @@ class FakeClient:
 	def __init__(self):
 		self.calls = []
 
-	def call_method(self, method, kwargs=None):
-		self.calls.append(("call_method", method, kwargs or {}))
+	def call_method(self, method, kwargs=None, timeout=None):
+		# timeout recorded only when passed, so the other tests' call shapes stay 3-tuples
+		self.calls.append(("call_method", method, kwargs or {}) + ((timeout,) if timeout else ()))
 		return {"ok": True}
 
 	def run_report(self, name, filters=None):
@@ -121,6 +122,7 @@ class CuratedTools(unittest.TestCase):
 			"call_method",
 			"ffl_integrations.fastbound.inventory_sync.sync_in_stock_from_boundbook",
 			{"dry_run": 1, "item_ids": None},
+			130,
 		))
 
 	def test_boundbook_reconcile_apply_requires_confirm(self):
@@ -132,7 +134,21 @@ class CuratedTools(unittest.TestCase):
 			"call_method",
 			"ffl_integrations.fastbound.inventory_sync.sync_in_stock_from_boundbook",
 			{"dry_run": 0, "item_ids": None},
+			130,
 		))
+
+	def test_boundbook_mismatches_calls_the_dry_run_only_method(self):
+		"""Read-only twin of boundbook_reconcile: no apply/confirm, and it must never
+		route to the writable sync method (it rides cpa mode)."""
+		self.tools["boundbook_mismatches"]()
+		self.assertEqual(self._last(), (
+			"call_method",
+			"ffl_integrations.fastbound.inventory_sync.boundbook_mismatches",
+			{},
+			130,
+		))
+		with self.assertRaises(TypeError):
+			self.tools["boundbook_mismatches"](item_ids=["FB1"])
 
 	def test_set_serial_title(self):
 		"""Per-gun Woo title write goes to Serial No.item_name (no confirm gate)."""
@@ -753,7 +769,7 @@ class CuratedTools(unittest.TestCase):
 
 	def test_all_new_tools_registered(self):
 		for name in (
-			"item_stock", "available_serials", "rsr_catalog_search", "boundbook_reconcile",
+			"item_stock", "available_serials", "rsr_catalog_search", "boundbook_reconcile", "boundbook_mismatches",
 			"receive_goods", "add_stock", "set_stock", "toggle_service_need",
 			"push_serial_to_fastbound", "verify_supplier_ffl", "reverify_all_ffls",
 			"promote_to_item", "backfill_from_rsr", "set_serial_title",
@@ -780,11 +796,11 @@ class CuratedTools(unittest.TestCase):
 
 	def test_curated_tool_count_pinned(self):
 		# This pins the CURATED bucket with the GunBroker actions ON. Total =
-		# 56 curated + 10 generic + 12 distributor + 7 reports + 29 shop-floor = 114, pinned in
-		# test_modes.py::test_full_mode_registers_the_whole_surface_including_the_cpa_18.
+		# 57 curated + 10 generic + 12 distributor + 7 reports + 30 shop-floor = 116, pinned in
+		# test_modes.py::test_full_mode_registers_the_whole_surface_including_the_cpa_surface.
 		# The DEFAULT surface is 3 lower here and 7 lower overall (both gates off).
 		# Moving any of these means moving README.md, CLAUDE.md and TOOLS.md.
-		self.assertEqual(len(self.tools), 56)
+		self.assertEqual(len(self.tools), 57)
 
 
 class GunBrokerActionGate(unittest.TestCase):

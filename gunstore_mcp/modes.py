@@ -35,7 +35,7 @@ class CpaModeRefused(RuntimeError):
 
 
 # Layer 1 — the EXACT cpa tools/list (asserted by set equality in tests;
-# 4 generic + 9 curated read-only + 6 shop-floor reads + 7 CPA reports = 26).
+# 4 generic + 10 curated read-only + 6 shop-floor reads + 7 CPA reports = 27).
 CPA_TOOL_NAMES: frozenset[str] = frozenset({
     # generic reads (frappe_run_method deliberately absent: reads and writes
     # are statically indistinguishable through it)
@@ -53,6 +53,8 @@ CPA_TOOL_NAMES: frozenset[str] = frozenset({
     "consignment_dealers",
     "consignment_serials",
     "consignment_dealer_orders",
+    # dry-run-only bound-book reconcile (boundbook_reconcile can apply, so it is NOT here)
+    "boundbook_mismatches",
     # cash drawer + stocktake reads (tools/shopfloor.py) — owner decision: the
     # accountant reads the drawer's closes / entries / log / weekly report and a count's
     # variance; none of the shop-floor WRITES is here.
@@ -91,6 +93,9 @@ CPA_METHOD_ALLOWLIST: frozenset[str] = frozenset({
     # Stocktake reads: the POS gates both on a stock role, so the cpa API user needs one.
     "ffl_core.api.inventory_count.get_counts",
     "ffl_core.api.inventory_count.variance",
+    # Bound-book reconcile, dry-run only: the POS method hard-wires dry_run=1 (no
+    # write path). The writable sync_in_stock_from_boundbook is deliberately absent.
+    "ffl_integrations.fastbound.inventory_sync.boundbook_mismatches",
 })
 
 # Layer 3 — integration Settings doctypes whose get/list reads are refused in
