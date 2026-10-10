@@ -19,8 +19,9 @@ class FakeClient:
 	def __init__(self):
 		self.calls = []
 
-	def call_method(self, method, kwargs=None):
-		self.calls.append(("call_method", method, kwargs or {}))
+	def call_method(self, method, kwargs=None, timeout=None):
+		# timeout recorded only when passed, so the other tests' call shapes stay 3-tuples
+		self.calls.append(("call_method", method, kwargs or {}) + ((timeout,) if timeout else ()))
 		return {"ok": True}
 
 	def run_report(self, name, filters=None):
@@ -141,10 +142,11 @@ class CuratedTools(unittest.TestCase):
 		self.assertEqual(self._last(), (
 			"call_method",
 			"ffl_integrations.fastbound.inventory_sync.boundbook_mismatches",
-			{"item_ids": None},
+			{},
+			130,
 		))
-		self.tools["boundbook_mismatches"](item_ids=["FB1"])
-		self.assertEqual(self._last()[2], {"item_ids": ["FB1"]})
+		with self.assertRaises(TypeError):
+			self.tools["boundbook_mismatches"](item_ids=["FB1"])
 
 	def test_set_serial_title(self):
 		"""Per-gun Woo title write goes to Serial No.item_name (no confirm gate)."""

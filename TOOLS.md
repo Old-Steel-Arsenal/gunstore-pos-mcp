@@ -358,6 +358,7 @@ refusing". There are three layers of defence, and each still holds if another fa
 - Generic reads (4): `frappe_list_documents`, `frappe_get_document`, `frappe_describe_doctype`, `frappe_run_report`.
 - Business reads (10): `find_item`, `item_stock`, `firearms_in_stock`, `pending_orders`, `pending_web_orders`, `consignment_queue`, `consignment_dealers`, `consignment_serials`, `consignment_dealer_orders`, `boundbook_mismatches` (the dry-run-only bound-book reconcile; `boundbook_reconcile` can apply, so it stays full-mode only).
 - Stocktake and cash drawer reads (6, see section 3b; also available in `full`): `cash_drawer_closes`, `cash_drawer_entries`, `cash_drawer_log`, `cash_drawer_weekly`, `inventory_counts`, `inventory_count_variance`. None of the writes is included. The two stocktake reads need a Stock role on the API user; the four drawer reads need only Accounts User.
+- `boundbook_mismatches` reads the whole FastBound book (one slow call, 130 s timeout). The POS allows it for System Manager, Sales User/Manager, Stock User/Manager and Accounts User.
 - Report kit (7, below; also available in `full`).
 
 `available_serials` is **not** in cpa mode. It hides consigned-out and held guns by default,
