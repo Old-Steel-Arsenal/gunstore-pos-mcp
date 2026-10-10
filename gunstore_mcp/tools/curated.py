@@ -416,6 +416,9 @@ def register(mcp: Any) -> None:
         return get_client().call_method(
             "ffl_integrations.fastbound.inventory_sync.sync_in_stock_from_boundbook",
             {"dry_run": 0 if apply else 1, "item_ids": item_ids},
+            # Pages the whole FastBound book too: a 30s client timeout would report a
+            # failure while the server goes on removing stock.
+            timeout=130,
         )
 
     @mcp.tool()

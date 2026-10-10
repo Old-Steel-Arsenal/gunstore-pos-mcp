@@ -122,6 +122,7 @@ class CuratedTools(unittest.TestCase):
 			"call_method",
 			"ffl_integrations.fastbound.inventory_sync.sync_in_stock_from_boundbook",
 			{"dry_run": 1, "item_ids": None},
+			130,
 		))
 
 	def test_boundbook_reconcile_apply_requires_confirm(self):
@@ -133,6 +134,7 @@ class CuratedTools(unittest.TestCase):
 			"call_method",
 			"ffl_integrations.fastbound.inventory_sync.sync_in_stock_from_boundbook",
 			{"dry_run": 0, "item_ids": None},
+			130,
 		))
 
 	def test_boundbook_mismatches_calls_the_dry_run_only_method(self):
