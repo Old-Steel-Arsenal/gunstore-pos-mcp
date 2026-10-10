@@ -1,6 +1,6 @@
 """CPA mode tests: the three defence layers.
 
-Layer 1 — registration: GUNSTORE_MCP_MODE=cpa registers EXACTLY the 25-name
+Layer 1 — registration: GUNSTORE_MCP_MODE=cpa registers EXACTLY the 27-name
 allowlist (set equality, per spec acceptance #1 — not merely "no write tools").
 Layer 2 — client: mutating client methods + non-allowlisted dotted methods
 raise CpaModeRefused before any HTTP.
@@ -67,11 +67,12 @@ EXPECTED_CPA_TOOLS = {
 	# generic (4)
 	"frappe_list_documents", "frappe_get_document", "frappe_describe_doctype",
 	"frappe_run_report",
-	# curated read-only (9)
+	# curated read-only (10)
 	"find_item", "item_stock", "firearms_in_stock",
 	"pending_orders", "pending_web_orders",
 	"consignment_queue", "consignment_dealers", "consignment_serials",
 	"consignment_dealer_orders",
+	"boundbook_mismatches",
 	# cash drawer + stocktake reads (6) — shop-floor WRITES never appear here
 	"cash_drawer_closes", "cash_drawer_entries", "cash_drawer_log", "cash_drawer_weekly",
 	"inventory_counts", "inventory_count_variance",
@@ -94,6 +95,7 @@ EXPECTED_METHOD_ALLOWLIST = {
 	"ffl_core.api.cash_drawer.get_log",
 	"ffl_core.api.inventory_count.get_counts",
 	"ffl_core.api.inventory_count.variance",
+	"ffl_integrations.fastbound.inventory_sync.boundbook_mismatches",
 }
 
 SETTINGS_DOCTYPES = {
@@ -121,21 +123,21 @@ class FakeMCP:
 
 
 class RegistrationLayer(unittest.TestCase):
-	def test_cpa_mode_registers_exactly_the_26_allowlisted_tools(self):
+	def test_cpa_mode_registers_exactly_the_27_allowlisted_tools(self):
 		mcp = FakeMCP()
 		server.register_tools(mcp, mode="cpa")
 		self.assertEqual(set(mcp.tools), EXPECTED_CPA_TOOLS)
-		self.assertEqual(len(mcp.tools), 26)
+		self.assertEqual(len(mcp.tools), 27)
 
 	def test_default_full_mode_holds_both_opt_in_sets_back(self):
-		"""Default full mode is 108, not 115: the 4 distributor queue actions and the
+		"""Default full mode is 109, not 116: the 4 distributor queue actions and the
 		3 GunBroker write actions each require an explicit opt-in. Pinned separately
 		from the full surface so that turning either gate into a no-op would break a
 		test rather than quietly restore the wider surface."""
 		mcp = FakeMCP()
 		with _actions(None):
 			server.register_tools(mcp, mode="full")
-		self.assertEqual(len(mcp.tools), 108)
+		self.assertEqual(len(mcp.tools), 109)
 		for name in ("distributor_confirm_order", "distributor_cancel_order",
 				"distributor_reroute", "distributor_update_order_ffl",
 				"gb_push_serial", "gb_end_listing", "gb_pull_orders"):
@@ -166,7 +168,7 @@ class RegistrationLayer(unittest.TestCase):
 		with _actions("1", gb="1"):
 			server.register_tools(mcp, mode="cpa")
 		self.assertEqual(set(mcp.tools), EXPECTED_CPA_TOOLS)
-		self.assertEqual(len(mcp.tools), 26)
+		self.assertEqual(len(mcp.tools), 27)
 		for name in ("gb_push_serial", "gb_end_listing", "gb_pull_orders",
 				"gb_test_connection", "gb_listing_status"):
 			self.assertNotIn(name, mcp.tools)
@@ -175,7 +177,7 @@ class RegistrationLayer(unittest.TestCase):
 		mcp = FakeMCP()
 		with _actions("1", gb="1"):
 			server.register_tools(mcp, mode="full")
-		self.assertEqual(len(mcp.tools), 115)
+		self.assertEqual(len(mcp.tools), 116)
 		self.assertTrue(EXPECTED_CPA_TOOLS <= set(mcp.tools))
 		# regression: none of the write faces leaked out of full mode
 		for name in ("frappe_run_method", "dispose_order", "receive_goods",
@@ -212,8 +214,18 @@ class RegistrationLayer(unittest.TestCase):
 		):
 			self.assertNotIn(name, mcp.tools)
 
-	def test_method_allowlist_is_exactly_the_thirteen_names(self):
+	def test_method_allowlist_is_exactly_the_fourteen_names(self):
 		self.assertEqual(set(CPA_METHOD_ALLOWLIST), EXPECTED_METHOD_ALLOWLIST)
+
+	def test_cpa_mode_has_the_dry_run_boundbook_tool_but_not_the_writable_one(self):
+		"""boundbook_reconcile can apply (removes guns from stock), so only the
+		dry-run-only boundbook_mismatches rides cpa — and the writable POS method
+		stays off the client allowlist."""
+		self.assertIn("boundbook_mismatches", EXPECTED_CPA_TOOLS)
+		self.assertNotIn("boundbook_reconcile", EXPECTED_CPA_TOOLS)
+		self.assertNotIn(
+			"ffl_integrations.fastbound.inventory_sync.sync_in_stock_from_boundbook",
+			CPA_METHOD_ALLOWLIST)
 
 	def test_settings_blocklist_is_exactly_the_ten_doctypes(self):
 		self.assertEqual(set(CPA_SETTINGS_READ_BLOCKLIST), SETTINGS_DOCTYPES)

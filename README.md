@@ -74,10 +74,10 @@ Secrets stay in `.env` (loaded by the server), not in the agent config.
 
 > **Tool reference, organised by task (safety notes and alternatives included): [TOOLS.md](TOOLS.md)**
 
-115 tools total: 10 generic + 56 curated + 12 distributor + 7 CPA reports + 30 shop-floor; 108 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
+116 tools total: 10 generic + 57 curated + 12 distributor + 7 CPA reports + 30 shop-floor; 109 register by default. Two opt-in sets are held back: the 4 distributor queue actions (`GUNSTORE_MCP_DISTRIBUTOR_ACTIONS=1`) and the 3 GunBroker write actions (`GUNSTORE_MCP_GUNBROKER_ACTIONS=1`). Neither is registered otherwise — an absent tool cannot be talked into firing.
 
 **Modes**: `GUNSTORE_MCP_MODE=cpa` starts a read-only accountant surface —
-exactly 26 tools (the write surface is never registered), a per-name read-only
+exactly 27 tools (the write surface is never registered), a per-name read-only
 method allowlist at the client layer, and the 7 integration Settings doctypes
 blocked from reads. Default (`full`) is the whole surface. Register a second
 server entry (e.g. `gunstore-pos-cpa`) with the same command plus
@@ -102,7 +102,7 @@ claude mcp add gunstore-pos-cpa --scope user \
   so env vars set in the registration win. A standalone install needs no
   `.env` file at all — and the same checkout can serve several entries with
   different `FRAPPE_BASE_URL` / mode combinations (e.g. a dev-site instance).
-- **Verify**: after connecting, `tools/list` must show exactly **26** tools and
+- **Verify**: after connecting, `tools/list` must show exactly **27** tools and
   the server name `gunstore-pos-cpa`. A misspelled/unknown mode value refuses
   to start (fail-closed) rather than silently degrading to the writable surface.
 - **Security boundary — read before handing this to a third party**: the
@@ -138,6 +138,7 @@ claude mcp add gunstore-pos-cpa --scope user \
 | `rsr_catalog_search` | RSR-only catalog search (`distributor_catalog_search` spans every enabled house) |
 | `promote_to_item` / `backfill_from_rsr` | RSR catalog row → sellable Item / backfill Item fields (`confirm`) |
 | `fastbound_test_connection` / `push_serial_to_fastbound` / `boundbook_reconcile` | FB probe / per-gun correction push (`confirm`) / bound-book reconcile (apply needs `confirm`) |
+| `boundbook_mismatches` | dry-run-only bound-book reconcile (read-only; also in cpa mode) |
 | `atf_verify_ffl` / `verify_supplier_ffl` / `reverify_all_ffls` | ATF eZ-Check verifies (`confirm`) |
 | `woo_test_connection` / `woo_push_item` / `woo_delist_item` / `woo_reconcile` | store probe / list / delist / reconcile an Item — all take `site: retail` (the only store; writes need `confirm`) |
 | `woo_push_serial` / `woo_delist_serial` | list / delist ONE gun (SKU `item_code::serial`; `site`; `confirm`) |
@@ -217,7 +218,7 @@ and approves. No key is typed anywhere, and the server holds none.
   `ffl_core/api/connector.py` and the Connector Audit Log doctype.
 - A user with **Restrict IP** set cannot use the connector: calls reach the POS from
   the connector (and ultimately from Claude's servers), never from the user's IP.
-- `cpa` mode keeps all three read-only layers. The full surface is **107 tools**
+- `cpa` mode keeps all three read-only layers. The full surface is **108 tools**
   remotely: `upload_attachment` reads a path on the *server* and is never registered
   there. The distributor actions never open remotely (the server refuses to start);
   the 3 GunBroker writes open on the **full** connector only, where the POS deploy
