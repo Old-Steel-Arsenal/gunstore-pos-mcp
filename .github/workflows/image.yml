@@ -31,7 +31,10 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          # Fixed, not ${{ github.repository }}: the repo was renamed to opengunstore-mcp, and the
+          # POS pins this package by name (deploy/prod/mcp in the POS repo). A derived name would
+          # start a new, empty package on the next push.
+          images: ghcr.io/old-steel-arsenal/gunstore-pos-mcp
           tags: |
             type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=sha-,format=short
