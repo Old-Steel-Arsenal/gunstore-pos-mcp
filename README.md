@@ -1,4 +1,4 @@
-# OpenGunstore Admin MCP
+# OpenGunstore MCP
 
 A local [MCP](https://modelcontextprotocol.io) server that wraps the OpenGunstore
 Frappe REST API, so you can read and change a store's settings and content from
@@ -40,7 +40,7 @@ uv sync          # creates .venv and installs deps
 
 ### 4. Register with your agent
 
-`/path/to/gunstore-pos-mcp` below is wherever you cloned this repo (the package is
+`/path/to/opengunstore-mcp` below is wherever you cloned this repo (the package is
 at the repo root). The server loads `.env` by its own file path, so credentials
 never go in the agent config.
 
@@ -50,7 +50,7 @@ never go in the agent config.
   "mcpServers": {
     "gunstore-pos": {
       "command": "uv",
-      "args": ["run", "--directory", "/path/to/gunstore-pos-mcp", "gunstore-mcp"]
+      "args": ["run", "--directory", "/path/to/opengunstore-mcp", "gunstore-mcp"]
     }
   }
 }
@@ -62,7 +62,7 @@ servers at startup):
 ```toml
 [mcp_servers.gunstore-pos]
 command = "uv"            # or an absolute path to uv if it isn't on Codex's PATH
-args = ["run", "--directory", "/path/to/gunstore-pos-mcp", "gunstore-mcp"]
+args = ["run", "--directory", "/path/to/opengunstore-mcp", "gunstore-mcp"]
 startup_timeout_sec = 120
 ```
 Verify with a quick stdio handshake (`initialize` + `tools/list`) or just list
@@ -89,13 +89,13 @@ To install **only** the read-only accountant surface (no full server) — e.g. o
 a second machine or for an analyst agent:
 
 ```bash
-git clone git@github.com:Old-Steel-Arsenal/gunstore-pos-mcp.git ~/gunstore-pos-mcp
+git clone git@github.com:Old-Steel-Arsenal/opengunstore-mcp.git ~/opengunstore-mcp
 claude mcp add gunstore-pos-cpa --scope user \
   --env GUNSTORE_MCP_MODE=cpa \
   --env FRAPPE_BASE_URL=https://pos.example.com \
   --env FRAPPE_API_KEY=<key> \
   --env FRAPPE_API_SECRET=<secret> \
-  -- uv run --directory ~/gunstore-pos-mcp gunstore-mcp
+  -- uv run --directory ~/opengunstore-mcp gunstore-mcp
 ```
 
 - **Process env beats `.env`**: the server loads `.env` with `override=False`,
