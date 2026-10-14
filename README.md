@@ -1,6 +1,6 @@
-# GunStore-POS Admin MCP
+# OpenGunstore Admin MCP
 
-A local [MCP](https://modelcontextprotocol.io) server that wraps the GunStore-POS
+A local [MCP](https://modelcontextprotocol.io) server that wraps the OpenGunstore
 Frappe REST API, so you can read and change a store's settings and content from
 Claude or Codex — toggle integration config, edit item pricing/listing, fix
 records, trigger RSR/FastBound/ATF operations, run the Firearms-In-Stock report.
@@ -184,7 +184,7 @@ Every write needs `confirm=true`; there is no registration gate (they are the sa
 | `gl_entries` | GL rows for a date range (`is_cancelled=0` always; explicit `truncated:true`) |
 | `financial_statement` | P&L / Balance Sheet (Date Range) / Trial Balance (fiscal-year auto-resolved) |
 | `tax_liability` | sales-tax liability roll-forward from the GL — accounts resolved from the default sales-tax template, vouchers bucketed fail-closed, cent-exact identity asserted |
-| `payroc_transactions` | every Payroc card transaction for a date range (≤31 days), read live from the gateway — counter and Woo web orders, sales / refunds / declines, portal refunds and voids included — each matched to the POS with disagreement flags; card type + last 4 only, plus the cardholder name. Needs a gunstore-pos release carrying `payroc/ledger.py`, and an API user with System Manager / Accounts Manager / Accounts User |
+| `payroc_transactions` | every Payroc card transaction for a date range (≤31 days), read live from the gateway — counter and Woo web orders, sales / refunds / declines, portal refunds and voids included — each matched to the POS with disagreement flags; card type + last 4 only, plus the cardholder name. Needs an OpenGunstore release carrying `payroc/ledger.py`, and an API user with System Manager / Accounts Manager / Accounts User |
 | `ar_ap_summary` | aged AR / AP as of a date (Posting Date basis, 30/60/90/120). AP is only meaningful when purchases are recorded as Purchase Invoices in ERPNext — reference only |
 
 ## Remote connector (OAuth, no API key)
@@ -214,7 +214,7 @@ and approves. No key is typed anywhere, and the server holds none.
   cannot be deleted; reads included): who, through which connector, which tool,
   which arguments (secrets masked by key, in filters and inside JSON strings),
   Started → Success / Failed. The row is written before the tool runs — if it
-  cannot be, the tool does not run. Needs a gunstore-pos release carrying
+  cannot be, the tool does not run. Needs an OpenGunstore release carrying
   `ffl_core/api/connector.py` and the Connector Audit Log doctype.
 - A user with **Restrict IP** set cannot use the connector: calls reach the POS from
   the connector (and ultimately from Claude's servers), never from the user's IP.
@@ -234,7 +234,7 @@ and approves. No key is typed anywhere, and the server holds none.
   `/mcp` and forwards `/.well-known/oauth-protected-resource/<public path>` unchanged.
 - Deployment: a container per surface on each store's POS host, behind that host's
   Caddy — image `ghcr.io/old-steel-arsenal/gunstore-pos-mcp` (built on every push to main),
-  deployed by each POS release (gunstore-pos `deploy/prod/mcp`, pinned
+  deployed by each POS release (opengunstore `deploy/prod/mcp`, pinned
   `MCP_TAG`) — see `deploy/README.md`.
 - POS side, once per site (OAuth Settings): *Show Auth Server Metadata* and
   *Enable Dynamic Client Registration* on; *Skip Authorization* off (every user
