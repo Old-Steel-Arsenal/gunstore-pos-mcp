@@ -1,4 +1,4 @@
-# GunStore-POS MCP: tool reference
+# OpenGunstore MCP: tool reference
 
 This reference is organised by what you want to do. Each tool is marked read or write,
 says whether it needs `confirm=true`, and lists the key parameters. The README has the

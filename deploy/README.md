@@ -1,7 +1,7 @@
 # Deploying the remote MCP servers
 
 **Deployed by the POS release, not from here.** The compose file, the pinned image
-tag and the Caddy routes live in the gunstore-pos repo:
+tag and the Caddy routes live in the opengunstore repo:
 
 - `deploy/prod/mcp/compose.yaml` — read-only (8781) and full (8782) servers on
   each store's POS host, host network, loopback only;
@@ -14,7 +14,7 @@ tag and the Caddy routes live in the gunstore-pos repo:
 
 1. Merge to `main` here → the `image` workflow runs the tests, then pushes
    `ghcr.io/old-steel-arsenal/gunstore-pos-mcp:sha-<7>` (and `:main`).
-2. In gunstore-pos, open a PR that sets `MCP_TAG=sha-<7>` in
+2. In opengunstore, open a PR that sets `MCP_TAG=sha-<7>` in
    `deploy/prod/mcp/version.env`.
 3. It goes out with the next POS release, on both stores; rolling the POS back
    rolls the MCP build back with it.

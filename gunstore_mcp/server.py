@@ -1,4 +1,4 @@
-"""GunStore-POS admin MCP server.
+"""OpenGunstore admin MCP server.
 
 Run: `gunstore-mcp` (console script) or `python -m gunstore_mcp.server`.
 
