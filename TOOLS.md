@@ -261,7 +261,7 @@ Service page in the Desk.
 
 | Task | Tool | Notes |
 |---|---|---|
-| Read an integration's configuration | `get_settings` | `ffl`, `fastbound`, `rsr`, `payroc`, `woocommerce`, `shipstation`, `gunbroker`, `sports_south` or `data_service` |
+| Read an integration's configuration | `get_settings` | `ffl`, `fastbound`, `rsr`, `payroc`, `woocommerce`, `shipstation`, `gunbroker`, `sports_south`, `lipseys` or `data_service` |
 | Change configuration (non-secret fields) | `update_settings` | Password and key fields are stripped; change those in the Desk |
 | Upload a local file to the POS | `upload_attachment` | Can attach to a record (`doctype` + `name`) or fill an Attach field. Private by default; images used on the storefront need `is_private=false`. Local stdio server only |
 
