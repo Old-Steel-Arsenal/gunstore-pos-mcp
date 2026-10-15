@@ -194,7 +194,7 @@ Open zone is a single named location (shelf, case, safe) with no capacity limit.
 
 | Task | Tool | Confirm | Notes |
 |---|---|---|---|
-| Record a payment on an unpaid order | `record_payment` | yes | Omitting the amount pays the balance. Zelle and ACH need `transaction_number`; when Payroc is enabled a Credit Card payment taken on the virtual terminal needs the authorization code |
+| Record a payment on an unpaid order | `record_payment` | yes | Omitting the amount pays the balance. Modes: Cash, Credit Card, Zelle, ACH, Check/Money Order. Zelle and ACH need `transaction_number`, Check/Money Order its check or money order number there; when Payroc is enabled a Credit Card payment taken on the virtual terminal needs the authorization code |
 | **Dispose** the guns on a counter or dealer order | `dispose_order` | yes | Books the transfer disposition per gun: stock out and push to FastBound. The server refuses unpaid orders and an invalid receiving FFL. Check the FFL and serial numbers before running it |
 | **Dispose** the guns on a web order | `dispose_web_order` | yes | Web orders are not pushed to ShipStation (the Woo plugin ships them itself) |
 | Push an order to ShipStation for a label | `push_shipment` | yes | Idempotent; fails safe on an invalid FFL or unpaid order |
