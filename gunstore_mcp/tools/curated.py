@@ -608,8 +608,11 @@ def register(mcp: Any) -> None:
     ) -> Any:
         """Record a later payment against a submitted, not-fully-paid Sales Invoice
         — books + submits a Payment Entry and returns the new balance. amount
-        omitted = the full outstanding; mode_of_payment 'Zelle' / 'ACH' require
-        transaction_number, and so does 'Credit Card' while Payroc is live (the
+        omitted = the full outstanding. mode_of_payment is 'Cash', 'Credit Card',
+        'Zelle', 'ACH' or 'Check/Money Order' (a paper check or money order:
+        booked to the bank, not the cash drawer). 'Zelle' / 'ACH' require
+        transaction_number, 'Check/Money Order' its check or money order number
+        there, and so does 'Credit Card' while Payroc is live (the
         Virtual Terminal approval code — terminal charges book themselves) or on
         a standalone terminal with approval codes required. confirm=true."""
         require_confirm(f"record_payment {sales_invoice}", confirm)
@@ -885,7 +888,9 @@ def register(mcp: Any) -> None:
         hooks reverse the dispositions → stock back in → FastBound delete
         queued), cancels linked Sales Orders, voids the ShipStation order, and
         books a refund Payment Entry for whatever was actually paid
-        (refund_mode/refund_reference when a refund is due). reason is required
+        (refund_mode/refund_reference when a refund is due: refund_mode is one of
+        record_payment's modes; Zelle, ACH and Check/Money Order need
+        refund_reference). reason is required
         and recorded. confirm=true."""
         require_confirm(f"cancel_order {sales_invoice}", confirm)
         reason = require_reason(f"cancel_order {sales_invoice}", reason)

@@ -537,6 +537,9 @@ class CuratedTools(unittest.TestCase):
 			{"sales_invoice": "SI-1", "mode_of_payment": "Zelle",
 			 "amount": 100.0, "transaction_number": "Z123"},
 		))
+		doc = self.tools["record_payment"].__doc__ or ""
+		for mode in ("Cash", "Credit Card", "Zelle", "ACH", "Check/Money Order"):
+			self.assertIn(mode, doc)
 
 	def test_push_shipment_requires_confirm(self):
 		with self.assertRaises(WriteRefused):
