@@ -112,6 +112,8 @@ CPA_SETTINGS_READ_BLOCKLIST: frozenset[str] = frozenset({
     # than a guarantee this repo makes.
     "GunBroker Settings",
     "Sports South Settings",
+    # Holds the Lipsey's dealer and drop-ship logins.
+    "Lipseys Settings",
     "Data Service Settings",
 })
 

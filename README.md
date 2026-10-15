@@ -129,7 +129,7 @@ claude mcp add gunstore-pos-cpa --scope user \
 ### Curated
 | Tool | Purpose |
 |---|---|
-| `get_settings` / `update_settings` | `ffl` \| `fastbound` \| `rsr` \| `payroc` \| `woocommerce` \| `shipstation` \| `gunbroker` \| `sports_south` \| `data_service` |
+| `get_settings` / `update_settings` | `ffl` \| `fastbound` \| `rsr` \| `payroc` \| `woocommerce` \| `shipstation` \| `gunbroker` \| `sports_south` \| `lipseys` \| `data_service` |
 | `find_item` / `item_stock` / `available_serials` | typeahead item search / stock per item / in-stock serials + per-gun prices |
 | `firearms_in_stock` | the Firearms In Stock report |
 | `receive_goods` | Purchase Receipt + FFL acquisitions + FastBound push (`confirm`); a paid purchase from a private seller (`acquisition_source` "Individual", type blank / Purchase / Individual) needs `seller_payment_method` (Cash / Zelle / Check / ACH) + `seller_payment_reference` unless Cash (gunstore-pos #705 on) |

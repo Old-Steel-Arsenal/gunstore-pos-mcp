@@ -106,6 +106,7 @@ SETTINGS_DOCTYPES = {
 	"GunBroker Settings",
 	# Sports South ordering credentials (account + API password), no accounting purpose.
 	"Sports South Settings",
+	"Lipseys Settings",
 	# Data-service HMAC client id + secret, no accounting purpose.
 	"Data Service Settings",
 }
